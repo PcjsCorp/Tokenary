@@ -229,7 +229,7 @@ class Agent: NSObject {
                 Window.closeAllAndActivateBrowser(specific: nil)
                 return
             }
-            self?.connect(session: session, chainId: chain.id, specificWalletAccount: specificWalletAccount)
+            self?.connectWallet(session: session, chainId: chain.id, walletId: specificWalletAccount.walletId)
         }
     }
     
@@ -293,12 +293,12 @@ class Agent: NSObject {
         }
     }
     
-    private func connect(session: WCSession, chainId: Int, specificWalletAccount: SpecificWalletAccount) {
+    private func connectWallet(session: WCSession, chainId: Int, walletId: String) {
         let windowController = Window.showNew(closeOthers: true)
         let window = windowController.window
         windowController.contentViewController = WaitingViewController.withReason(Strings.connecting)
-        let address = specificWalletAccount.account.address
-        walletConnect.connect(session: session, chainId: chainId, walletId: specificWalletAccount.walletId, address: address) { [weak window] _ in
+        
+        walletConnect.connect(session: session, chainId: chainId, walletId: walletId) { [weak window] _ in
             if window?.isVisible == true {
                 Window.closeAllAndActivateBrowser(specific: nil)
             }

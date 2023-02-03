@@ -2,7 +2,7 @@
 
 import Foundation
 import WalletCore
-import Web3Swift // TODO: deprecate
+import Web3Swift
 
 struct Ethereum {
 
@@ -18,12 +18,12 @@ struct Ethereum {
     
     static let shared = Ethereum()
     
-    func sign(data: Data, privateKey: WalletCore.PrivateKey) throws -> String {
-        return try sign(data: data, privateKey: privateKey, addPrefix: false)
+    func sign(data: Data, wallet: TokenaryWallet) throws -> String {
+        return try sign(data: data, wallet: wallet, addPrefix: false)
     }
     
-    func signPersonalMessage(data: Data, privateKey: WalletCore.PrivateKey) throws -> String {
-        return try sign(data: data, privateKey: privateKey, addPrefix: true)
+    func signPersonalMessage(data: Data, wallet: TokenaryWallet) throws -> String {
+        return try sign(data: data, wallet: wallet, addPrefix: true)
     }
     
     func recover(signature: Data, message: Data) -> String? {
@@ -41,7 +41,9 @@ struct Ethereum {
         return Hash.keccak256(data: prefixData + data)
     }
     
-    private func sign(data: Data, privateKey: WalletCore.PrivateKey, addPrefix: Bool) throws -> String {
+    private func sign(data: Data, wallet: TokenaryWallet, addPrefix: Bool) throws -> String {
+        guard let ethereumPrivateKey = wallet.ethereumPrivateKey else { throw Error.keyNotFound }
+        
         let digest: Data
         if addPrefix {
             guard let prefixedData = prefixedDataHash(data: data) else { throw Error.failedToSign }
@@ -50,21 +52,22 @@ struct Ethereum {
             digest = data
         }
         
-        guard var signed = privateKey.sign(digest: digest, curve: CoinType.ethereum.curve) else { throw Error.failedToSign }
+        guard var signed = ethereumPrivateKey.sign(digest: digest, curve: CoinType.ethereum.curve) else { throw Error.failedToSign }
         signed[64] += 27
         return signed.toPrefixedHexString()
     }
     
-    func sign(typedData: String, privateKey: WalletCore.PrivateKey) throws -> String {
+    func sign(typedData: String, wallet: TokenaryWallet) throws -> String {
+        guard let ethereumPrivateKey = wallet.ethereumPrivateKey else { throw Error.keyNotFound }
         let digest = EthereumAbi.encodeTyped(messageJson: typedData)
-        guard var signed = privateKey.sign(digest: digest, curve: CoinType.ethereum.curve) else { throw Error.failedToSign }
+        guard var signed = ethereumPrivateKey.sign(digest: digest, curve: CoinType.ethereum.curve) else { throw Error.failedToSign }
         signed[64] += 27
         return signed.toPrefixedHexString()
     }
     
-    func send(transaction: Transaction, privateKey: WalletCore.PrivateKey, chain: EthereumChain) throws -> String {
+    func send(transaction: Transaction, wallet: TokenaryWallet, chain: EthereumChain) throws -> String {
         let network = EthereumNetwork.forChain(chain)
-        let bytes = try signedTransactionBytes(transaction: transaction, privateKey: privateKey, chain: chain)
+        let bytes = try signedTransactionBytes(transaction: transaction, wallet: wallet, chain: chain)
         let response = try SendRawTransactionProcedure(network: network, transactionBytes: bytes).call()
         guard let hash = response["result"].string else {
             throw Error.failedToSendTransaction
@@ -72,9 +75,10 @@ struct Ethereum {
         return hash
     }
     
-    private func signedTransactionBytes(transaction: Transaction, privateKey: WalletCore.PrivateKey, chain: EthereumChain) throws -> EthContractCallBytes {
+    private func signedTransactionBytes(transaction: Transaction, wallet: TokenaryWallet, chain: EthereumChain) throws -> EthContractCallBytes {
         let network = EthereumNetwork.forChain(chain)
-        let senderKey = EthPrivateKey(hex: privateKey.data.hexString)
+        guard let privateKeyString = wallet.ethereumPrivateKeyString else { throw Error.keyNotFound }
+        let senderKey = EthPrivateKey(hex: privateKeyString)
         let contractAddress = EthAddress(hex: transaction.to)
         let functionCall = BytesFromHexString(hex: transaction.data)
         let bytes: EthContractCallBytes
