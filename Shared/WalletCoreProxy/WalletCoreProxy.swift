@@ -615,6 +615,28 @@ enum WalletCrypto {
                                                     data: data)
     }
 
+    static func signEthereumEIP1559Transaction(chainID: Data,
+                                               nonce: Data,
+                                               maxPriorityFeePerGas: Data,
+                                               maxFeePerGas: Data,
+                                               gasLimit: Data,
+                                               toAddress: String,
+                                               privateKey: WalletPrivateKey,
+                                               amount: Data,
+                                               data: Data,
+                                               accessList: [EthereumAccessListEntry]) -> Data? {
+        return EthereumTransactionSigner.signEIP1559(chainID: chainID,
+                                                      nonce: nonce,
+                                                      maxPriorityFeePerGas: maxPriorityFeePerGas,
+                                                      maxFeePerGas: maxFeePerGas,
+                                                      gasLimit: gasLimit,
+                                                      toAddress: toAddress,
+                                                      privateKey: privateKey,
+                                                      amount: amount,
+                                                      data: data,
+                                                      accessList: accessList)
+    }
+
     static func bip44DerivationPath(coin: WalletCoin, account: UInt32, change: UInt32, address: UInt32) -> String {
         return "m/44'/\(coin.slip44Id)'/\(account)'/\(change)/\(address)"
     }

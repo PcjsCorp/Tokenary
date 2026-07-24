@@ -4,7 +4,10 @@
 "use strict";
 
 import RPCServer from "./rpc";
-import ProviderRpcError from "./error";
+import ProviderRpcError, {
+    decodeProviderErrorData,
+    normalizeEthereumProviderError,
+} from "./error";
 import Utils from "./utils";
 import IdMapping from "./id_mapping";
 import { EventEmitter } from "events";
@@ -147,7 +150,7 @@ class BigWalletEthereum extends EventEmitter {
             that = window.bigwallet.eth;
         }
         if (Array.isArray(payload)) {
-            Promise.all(payload.map(that._request.bind(that)))
+            Promise.all(payload.map(item => that._request(item)))
             .then((data) => callback(null, data))
             .catch((error) => callback(error, null));
         } else {
@@ -161,9 +164,6 @@ class BigWalletEthereum extends EventEmitter {
     _request(payload, wrapResult = true) {
         this.idMapping.tryFixId(payload);
         return new Promise((resolve, reject) => {
-            if (!payload.id) {
-                payload.id = Utils.genId();
-            }
             this.callbacks.set(payload.id, (error, data) => {
                 // Some dapps do not get responses sent without a delay.
                 // e.g., nftx.io does not start with a latest account if response is sent without a delay.
@@ -176,34 +176,49 @@ class BigWalletEthereum extends EventEmitter {
                 }, 1);
             });
             this.wrapResults.set(payload.id, wrapResult);
-            switch (payload.method) {
-                case "eth_accounts":
-                case "eth_coinbase":
-                case "net_version":
-                case "eth_chainId":
-                case "eth_sign":
-                case "personal_sign":
-                case "personal_ecRecover":
-                case "eth_signTypedData_v3":
-                case "eth_signTypedData":
-                case "eth_signTypedData_v4":
-                case "eth_sendTransaction":
-                case "eth_requestAccounts":
-                case "wallet_addEthereumChain":
-                case "wallet_switchEthereumChain":
-                case "wallet_requestPermissions":
-                case "wallet_getPermissions":
-                    return this._processPayload(payload);
-                case "eth_newFilter":
-                case "eth_newBlockFilter":
-                case "eth_newPendingTransactionFilter":
-                case "eth_uninstallFilter":
-                case "eth_subscribe":
-                    throw new ProviderRpcError(4200, `Big Wallet does not support ${payload.method}`);
-                default:
-                    return this.rpc.call(payload);
+            try {
+                switch (payload.method) {
+                    case "eth_accounts":
+                    case "eth_coinbase":
+                    case "net_version":
+                    case "eth_chainId":
+                    case "eth_sign":
+                    case "personal_sign":
+                    case "personal_ecRecover":
+                    case "eth_signTypedData_v3":
+                    case "eth_signTypedData":
+                    case "eth_signTypedData_v4":
+                    case "eth_sendTransaction":
+                    case "eth_requestAccounts":
+                    case "wallet_addEthereumChain":
+                    case "wallet_switchEthereumChain":
+                    case "wallet_requestPermissions":
+                    case "wallet_getPermissions":
+                        return this._processPayload(payload);
+                    case "eth_newFilter":
+                    case "eth_newBlockFilter":
+                    case "eth_newPendingTransactionFilter":
+                    case "eth_uninstallFilter":
+                    case "eth_subscribe":
+                        throw new ProviderRpcError(
+                            4200,
+                            `Big Wallet does not support ${payload.method}`
+                        );
+                    default:
+                        return this.rpc.call(payload);
+                }
+            } catch (error) {
+                this.sendError(payload.id, error);
             }
         });
+    }
+
+    _processPayloadSafely(payload) {
+        try {
+            return this._processPayload(payload);
+        } catch (error) {
+            this.sendError(payload.id, error);
+        }
     }
     
     _processPayload(payload) {
@@ -306,7 +321,17 @@ class BigWalletEthereum extends EventEmitter {
     }
     
     eth_sendTransaction(payload) {
-        this.postMessage("signTransaction", payload.id, payload.params[0]);
+        const params = payload.params;
+        const transaction =
+            Array.isArray(params) && params.length > 0
+                ? params[0]
+                : undefined;
+        if (transaction === null ||
+            typeof transaction !== "object" ||
+            Array.isArray(transaction)) {
+            throw new ProviderRpcError(-32602, "Invalid parameters");
+        }
+        this.postMessage("signTransaction", payload.id, transaction);
     }
     
     eth_requestAccounts(payload) {
@@ -332,11 +357,11 @@ class BigWalletEthereum extends EventEmitter {
                 this.updateAccount(response.name, response.results, response.chainId);
             }
             
-            for(let payload of this.pendingPayloads) {
-                this._processPayload(payload);
-            }
-            
+            const pendingPayloads = this.pendingPayloads;
             this.pendingPayloads = [];
+            for (const payload of pendingPayloads) {
+                this._processPayloadSafely(payload);
+            }
             return;
         }
         
@@ -355,7 +380,12 @@ class BigWalletEthereum extends EventEmitter {
                 this.updateAccount(response.name, response.results, response.chainId);
             }
         } else if ("error" in response) {
-            this.sendError(id, response.error);
+            this.sendError(
+                id,
+                response.error,
+                response.errorCode,
+                decodeProviderErrorData(response.errorDataJSON)
+            );
         }
     }
     
@@ -373,7 +403,8 @@ class BigWalletEthereum extends EventEmitter {
     }
     
     sendResponse(id, result) {
-        let originId = this.idMapping.tryPopId(id) || id;
+        const mappedId = this.idMapping.tryPopId(id);
+        const originId = typeof mappedId === "undefined" ? id : mappedId;
         let callback = this.callbacks.get(id);
         let wrapResult = this.wrapResults.get(id);
         let data = { jsonrpc: "2.0", id: originId };
@@ -390,15 +421,21 @@ class BigWalletEthereum extends EventEmitter {
             console.log(`callback id: ${id} not found`);
         }
     }
-    
-    sendError(id, error) {
-        console.log(`<== ${id} sendError ${error}`);
+
+    sendError(id, error, code, data) {
+        const normalizedError = normalizeEthereumProviderError(
+            error,
+            code,
+            data
+        );
+        console.log(`<== ${id} sendError ${normalizedError}`);
+        this.idMapping.tryPopId(id);
         let callback = this.callbacks.get(id);
         if (callback) {
-            callback(error instanceof Error ? error : new Error(error), null);
+            callback(normalizedError, null);
             this.callbacks.delete(id);
-            this.wrapResults.delete(id);
         }
+        this.wrapResults.delete(id);
     }
 }
 

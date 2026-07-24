@@ -492,6 +492,10 @@
 		2F4C00152FA9000000000000 /* WalletCoreProxyTestVectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4C00142FA9000000000000 /* WalletCoreProxyTestVectors.swift */; };
 		2F4C00162FA9000000000000 /* WalletCoreProxyTestVectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4C00142FA9000000000000 /* WalletCoreProxyTestVectors.swift */; };
 		2F4C00172FA9000000000000 /* WalletCoreProxyTestVectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4C00142FA9000000000000 /* WalletCoreProxyTestVectors.swift */; };
+		2FA700022FBD000000000001 /* EthereumAccessListEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA700012FBD000000000001 /* EthereumAccessListEntry.swift */; };
+		2FA700032FBD000000000001 /* EthereumAccessListEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA700012FBD000000000001 /* EthereumAccessListEntry.swift */; };
+		2FA700042FBD000000000001 /* EthereumAccessListEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA700012FBD000000000001 /* EthereumAccessListEntry.swift */; };
+		2FA700052FBD000000000001 /* EthereumAccessListEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA700012FBD000000000001 /* EthereumAccessListEntry.swift */; };
 		2F4D00012FAA000000000000 /* WalletCoreProxyStoredKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4D00002FAA000000000000 /* WalletCoreProxyStoredKey.swift */; };
 		2F4D00022FAA000000000000 /* WalletCoreProxyStoredKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4D00002FAA000000000000 /* WalletCoreProxyStoredKey.swift */; };
 		2F4D00032FAA000000000000 /* WalletCoreProxyStoredKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4D00002FAA000000000000 /* WalletCoreProxyStoredKey.swift */; };
@@ -546,6 +550,13 @@
 		2F4E01012FAC000000000000 /* GasServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4E01002FAC000000000000 /* GasServiceTests.swift */; };
 		2F4E01022FAC000000000000 /* GasServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4E01002FAC000000000000 /* GasServiceTests.swift */; };
 		2F4E01032FAC000000000000 /* GasServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F4E01002FAC000000000000 /* GasServiceTests.swift */; };
+		2FA801012FBE000000000001 /* TransactionApprovalCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA801002FBE000000000001 /* TransactionApprovalCoordinator.swift */; };
+		2FA801022FBE000000000001 /* TransactionApprovalCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA801002FBE000000000001 /* TransactionApprovalCoordinator.swift */; };
+		2FA801032FBE000000000001 /* TransactionApprovalCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA801002FBE000000000001 /* TransactionApprovalCoordinator.swift */; };
+		2FA801042FBE000000000001 /* TransactionApprovalCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA801002FBE000000000001 /* TransactionApprovalCoordinator.swift */; };
+		2FA802012FBE000000000001 /* TransactionApprovalCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA802002FBE000000000001 /* TransactionApprovalCoordinatorTests.swift */; };
+		2FA802022FBE000000000001 /* TransactionApprovalCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA802002FBE000000000001 /* TransactionApprovalCoordinatorTests.swift */; };
+		2FA802032FBE000000000001 /* TransactionApprovalCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA802002FBE000000000001 /* TransactionApprovalCoordinatorTests.swift */; };
 		2F5E10012FA5000000F0000 /* RemoteImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5E10002FA5000000F0000 /* RemoteImageLoader.swift */; };
 		2F5E10022FA5000000F0000 /* RemoteImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5E10002FA5000000F0000 /* RemoteImageLoader.swift */; };
 		2F5E10032FA5000000F0000 /* RemoteImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5E10002FA5000000F0000 /* RemoteImageLoader.swift */; };
@@ -819,6 +830,9 @@
 		2F1A00022E20000100A1A001 /* SolanaResponseToExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SolanaResponseToExtension.swift; sourceTree = "<group>"; };
 		2F1A00032E20000100A1A001 /* Solana.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Solana.swift; sourceTree = "<group>"; };
 		2FA300000000000000000001 /* AlchemyJWTProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlchemyJWTProvider.swift; sourceTree = "<group>"; };
+		2FA700012FBD000000000001 /* EthereumAccessListEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EthereumAccessListEntry.swift; sourceTree = "<group>"; };
+		2FA801002FBE000000000001 /* TransactionApprovalCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionApprovalCoordinator.swift; sourceTree = "<group>"; };
+		2FA802002FBE000000000001 /* TransactionApprovalCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionApprovalCoordinatorTests.swift; sourceTree = "<group>"; };
 		2F2A00000000000000000001 /* SolanaTestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SolanaTestFixtures.swift; sourceTree = "<group>"; };
 		2F2A00000000000000000005 /* SolanaWireMessageParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SolanaWireMessageParserTests.swift; sourceTree = "<group>"; };
 		2F2A00000000000000000009 /* SolanaTransactionSummaryFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SolanaTransactionSummaryFormatterTests.swift; sourceTree = "<group>"; };
@@ -939,6 +953,7 @@
 				2C0000012FA7000000000001 /* BigUIntTests.swift */,
 				2F2A00000000000000000015 /* DappRequestProcessorTests.swift */,
 				2F4E01002FAC000000000000 /* GasServiceTests.swift */,
+				2FA802002FBE000000000001 /* TransactionApprovalCoordinatorTests.swift */,
 				2F2A00000000000000000011 /* SolanaOptionsTests.swift */,
 				2F2A0000000000000000000D /* SolanaPreparedTransactionTests.swift */,
 				2F2A00000000000000000001 /* SolanaTestFixtures.swift */,
@@ -1167,6 +1182,8 @@
 				AB0A96C0EB9F43119A1BE09C /* NetworkCatalog.swift */,
 				DB2B8110AC144397915962B1 /* NetworkCatalog.json */,
 				2C1995552674D0F300A8E370 /* Ethereum.swift */,
+				2FA700012FBD000000000001 /* EthereumAccessListEntry.swift */,
+				2FA801002FBE000000000001 /* TransactionApprovalCoordinator.swift */,
 				2CE3D011267F73C00032A62E /* Transaction.swift */,
 				2C8944CA2AEB0C10006A711F /* EthereumRPC.swift */,
 				2C9F0B6726BDCB2E008FA3D6 /* EthereumNetwork.swift */,
@@ -2410,6 +2427,7 @@
 				2C773FEA2D53C17000879A1F /* PriceService.swift in Sources */,
 				2C773FF12D53C18C00879A1F /* UserDefaults.swift in Sources */,
 				2C773FEB2D53C17000879A1F /* GasService.swift in Sources */,
+				2FA801032FBE000000000001 /* TransactionApprovalCoordinator.swift in Sources */,
 				2C773FEE2D53C17000879A1F /* DappRequestProcessor.swift in Sources */,
 				2F1A10232E20000100A1A001 /* Solana.swift in Sources */,
 				2C773FEF2D53C17000879A1F /* Keychain.swift in Sources */,
@@ -2433,6 +2451,7 @@
 				2C773FF92D53C1B700879A1F /* BigUInt.swift in Sources */,
 				2C17BDE32D3D01F30015C58B /* Big_Wallet_visionOSApp.swift in Sources */,
 				2C773FDF2D53C12900879A1F /* Networks.swift in Sources */,
+				2FA700042FBD000000000001 /* EthereumAccessListEntry.swift in Sources */,
 				2C773FE02D53C12900879A1F /* Transaction.swift in Sources */,
 				2C773FF52D53C19F00879A1F /* Image.swift in Sources */,
 				2C77400E2D53C24F00879A1F /* UIApplication.swift in Sources */,
@@ -2567,6 +2586,7 @@
 				2CDAB3722675B3F0009F8B97 /* PasswordViewController.swift in Sources */,
 				2C1995402674C4B900A8E370 /* AppDelegate.swift in Sources */,
 				2C901C4D268A033100D0926A /* GasService.swift in Sources */,
+				2FA801012FBE000000000001 /* TransactionApprovalCoordinator.swift in Sources */,
 				2C4768A728258627005E8D4D /* EditAccountsViewController.swift in Sources */,
 				2C5C829F2822B9DF007D9488 /* Images.swift in Sources */,
 				2C4297282ADEDCBD0044357A /* PeerMeta.swift in Sources */,
@@ -2576,6 +2596,7 @@
 				2CD0B3F526A0DAA900488D92 /* NSPasteboard.swift in Sources */,
 				2C2AA1D528AFB1AD00E35DBF /* MultipleResponseToExtension.swift in Sources */,
 				2C264BEB27B6B50700234393 /* DappRequestProcessor.swift in Sources */,
+				2FA700022FBD000000000001 /* EthereumAccessListEntry.swift in Sources */,
 				2CE3D012267F73C00032A62E /* Transaction.swift in Sources */,
 				2C90E62227B2ED2D00C8991E /* SafariRequest+Helpers.swift in Sources */,
 				2C09FC662828331D00DE9C27 /* PlatformSpecificImage.swift in Sources */,
@@ -2612,6 +2633,7 @@
 				2C2AA1D328AD1DC100E35DBF /* SpecificWalletAccount.swift in Sources */,
 				2C40709027667A6600AB3D55 /* MultilineLabelTableViewCell.swift in Sources */,
 				2CF255A6275A48BB00AE54B9 /* GasService.swift in Sources */,
+				2FA801022FBE000000000001 /* TransactionApprovalCoordinator.swift in Sources */,
 				2C96D392276232A300687301 /* UITableView.swift in Sources */,
 				CB63AC31BA2E4767A8C766C2 /* NetworkCatalog.swift in Sources */,
 				2CF255A5275A48BB00AE54B9 /* ReviewRequester.swift in Sources */,
@@ -2635,6 +2657,7 @@
 				2C4768B52826ED83005E8D4D /* WalletCoin.swift in Sources */,
 				2C728B622AFBFAF100E4DD47 /* Image.swift in Sources */,
 				2CED86C02AF25C32006F9E26 /* Networks.swift in Sources */,
+				2FA700032FBD000000000001 /* EthereumAccessListEntry.swift in Sources */,
 				2CF255AE275A48CF00AE54B9 /* Transaction.swift in Sources */,
 				2C96D38F2762317300687301 /* AccountTableViewCell.swift in Sources */,
 				2C264BEC27B6B50700234393 /* DappRequestProcessor.swift in Sources */,
@@ -2731,6 +2754,7 @@
 				2FA100000000000000000009 /* SafariRPCClient.swift in Sources */,
 				2FA200000000000000000002 /* CustomNetworkStorageTests.swift in Sources */,
 				2F4E01012FAC000000000000 /* GasServiceTests.swift in Sources */,
+				2FA802012FBE000000000001 /* TransactionApprovalCoordinatorTests.swift in Sources */,
 				2F2A00000000000000000002 /* SolanaTestFixtures.swift in Sources */,
 				2F2A00000000000000000006 /* SolanaWireMessageParserTests.swift in Sources */,
 				2F2A0000000000000000000A /* SolanaTransactionSummaryFormatterTests.swift in Sources */,
@@ -2805,6 +2829,7 @@
 				2CF6AD6F993BC4281AA0DD8D /* ApproveTransactionViewController.swift in Sources */,
 				2C26CD0283AE39C8790606F7 /* PasswordViewController.swift in Sources */,
 				2CB61F26437C2FF33819F09D /* GasService.swift in Sources */,
+				2FA801042FBE000000000001 /* TransactionApprovalCoordinator.swift in Sources */,
 				2C97FD6D45F8A1880EC33999 /* EditAccountsViewController.swift in Sources */,
 				2C290B9C02E4013144EA757E /* Images.swift in Sources */,
 				2C5FD1254A43F3A55775BF5F /* PeerMeta.swift in Sources */,
@@ -2827,6 +2852,7 @@
 				2F4D00A42FAB100000000000 /* ScryptBackend/big_wallet_scrypt_shim.c in Sources */,
 				2F4D00542FAA000000000000 /* WalletCoreProxyHD.swift in Sources */,
 				2F4D00642FAA000000000000 /* WalletCoreProxyBIP39WordList.swift in Sources */,
+				2FA700052FBD000000000001 /* EthereumAccessListEntry.swift in Sources */,
 				2CF2676F1861169B92F690A4 /* Transaction.swift in Sources */,
 				2C60964FCD7D7729CC2F5390 /* SafariRequest+Helpers.swift in Sources */,
 				2CD179BB4ADFB6932786B2B0 /* PlatformSpecificImage.swift in Sources */,
@@ -2885,6 +2911,7 @@
 				2FA10000000000000000000A /* SafariRPCClient.swift in Sources */,
 				2FA200000000000000000003 /* CustomNetworkStorageTests.swift in Sources */,
 				2F4E01022FAC000000000000 /* GasServiceTests.swift in Sources */,
+				2FA802022FBE000000000001 /* TransactionApprovalCoordinatorTests.swift in Sources */,
 				2F2A00000000000000000003 /* SolanaTestFixtures.swift in Sources */,
 				2F2A00000000000000000007 /* SolanaWireMessageParserTests.swift in Sources */,
 				2F2A0000000000000000000B /* SolanaTransactionSummaryFormatterTests.swift in Sources */,
@@ -2914,6 +2941,7 @@
 				2FA10000000000000000000B /* SafariRPCClient.swift in Sources */,
 				2FA200000000000000000004 /* CustomNetworkStorageTests.swift in Sources */,
 				2F4E01032FAC000000000000 /* GasServiceTests.swift in Sources */,
+				2FA802032FBE000000000001 /* TransactionApprovalCoordinatorTests.swift in Sources */,
 				2F2A00000000000000000004 /* SolanaTestFixtures.swift in Sources */,
 				2F2A00000000000000000008 /* SolanaWireMessageParserTests.swift in Sources */,
 				2F2A0000000000000000000C /* SolanaTransactionSummaryFormatterTests.swift in Sources */,

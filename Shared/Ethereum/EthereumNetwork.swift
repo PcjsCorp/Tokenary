@@ -2,6 +2,48 @@
 
 import Foundation
 
+enum EthereumFeeMarketSupport: String, Codable, Equatable, Hashable {
+
+    case eip1559
+    case legacy
+    case unknown
+
+}
+
+struct EthereumFeeMarketHint: Codable, Equatable, Hashable {
+
+    private static let checkedAtFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    let support: EthereumFeeMarketSupport
+    // Audit marker for humans diffing the catalog; hints apply
+    // regardless of age. MAINTENANCE.md covers re-probing.
+    let checkedAt: String
+    let observedEndpoint: String
+
+    var checkedAtDate: Date? {
+        Self.checkedAtFormatter.date(from: checkedAt)
+    }
+
+    func matches(endpointURL: URL) -> Bool {
+        return observedEndpoint == endpointURL.absoluteString
+    }
+
+    func applicableSupport(
+        for endpointURL: URL
+    ) -> EthereumFeeMarketSupport? {
+        guard support != .unknown,
+              matches(endpointURL: endpointURL) else {
+            return nil
+        }
+        return support
+    }
+
+}
+
 struct EthereumRPCEndpoint: Equatable, Hashable {
 
     private enum Trust: Equatable, Hashable {
@@ -11,30 +53,70 @@ struct EthereumRPCEndpoint: Equatable, Hashable {
 
     let url: URL
     private let trust: Trust
+    let feeMarketHint: EthereumFeeMarketHint?
 
-    private init(url: URL, trust: Trust) {
+    private init(
+        url: URL,
+        trust: Trust,
+        feeMarketHint: EthereumFeeMarketHint?
+    ) {
         self.url = url
         self.trust = trust
+        self.feeMarketHint = feeMarketHint
     }
 
     static func unauthenticated(_ url: URL) -> EthereumRPCEndpoint {
-        return EthereumRPCEndpoint(url: url, trust: .unauthenticated)
+        return EthereumRPCEndpoint(
+            url: url,
+            trust: .unauthenticated,
+            feeMarketHint: nil
+        )
     }
 
     static func catalog(
         _ url: URL,
-        alchemyNetwork: String?
+        alchemyNetwork: String?,
+        feeMarketHint: EthereumFeeMarketHint? = nil
     ) -> EthereumRPCEndpoint {
         let canonicalURL = alchemyNetwork.flatMap(AlchemyRPC.url(network:))
         let isCanonical = canonicalURL?.absoluteString == url.absoluteString
+        let applicableHint = feeMarketHint?.matches(endpointURL: url) == true
+            ? feeMarketHint
+            : nil
         return EthereumRPCEndpoint(
             url: url,
-            trust: isCanonical ? .alchemy : .unauthenticated
+            trust: isCanonical ? .alchemy : .unauthenticated,
+            feeMarketHint: applicableHint
         )
     }
 
     var allowsAlchemyAuthorization: Bool {
         return trust == .alchemy
+    }
+
+    func catalogFeeMarketObservation() -> EthereumFeeMarketSupport? {
+        return feeMarketHint?.applicableSupport(for: url)
+    }
+
+    func catalogFeeMarketSupport() -> EthereumFeeMarketSupport? {
+        let observation = catalogFeeMarketObservation()
+        return observation == .eip1559 ? .eip1559 : nil
+    }
+
+    func requiresFeeMarketDetection() -> Bool {
+        return catalogFeeMarketSupport() == nil
+    }
+
+    static func == (
+        lhs: EthereumRPCEndpoint,
+        rhs: EthereumRPCEndpoint
+    ) -> Bool {
+        return lhs.url == rhs.url && lhs.trust == rhs.trust
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(url)
+        hasher.combine(trust)
     }
 
 }

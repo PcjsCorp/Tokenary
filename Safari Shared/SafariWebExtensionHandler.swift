@@ -60,10 +60,23 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                    Nodes.url(chainId: switchToChainId) != nil {
                     let chainId = String.hex(switchToChainId, withPrefix: true)
                     let responseBody = ResponseToExtension.Ethereum(results: [ethereumRequest.address], chainId: chainId)
-                    let response = ResponseToExtension(for: request, body: .ethereum(responseBody))
+                    let response = ResponseToExtension(
+                        for: request,
+                        payload: .body(.ethereum(responseBody))
+                    )
                     Self.respond(with: response.json, context: context)
                 } else {
-                    let response = ResponseToExtension(for: request, error: "failed to switch chain")
+                    let response = ResponseToExtension(
+                        for: request,
+                        payload: .error(
+                            ProviderResponseError(
+                                // Strings.swift is not compiled into the
+                                // Safari extension targets.
+                                message: "Unrecognized chain ID",
+                                code: 4902
+                            )
+                        )
+                    )
                     Self.respond(with: response.json, context: context)
                 }
             } else {
@@ -131,10 +144,11 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
 
         Self.rpcClient.send(
             endpoint: resolvedNetwork.rpcEndpoint,
-            body: httpBody
+            body: httpBody,
+            expectedResponseID: id
         ) { response in
             if var json = response {
-                if json["id"] == nil { json["id"] = id }
+                json["id"] = id
                 Self.respond(with: json, context: context)
             } else {
                 Self.respond(with: ["id": id, "error": "something went wrong"], context: context)

@@ -21,6 +21,7 @@ struct NetworkCatalogRecord: Codable, Equatable {
     let alchemyNetwork: String?
     let fallbackRPCURL: String?
     let accountDisabledAlchemyNetwork: String?
+    let feeMarketHint: EthereumFeeMarketHint
 
     var hasExactlyOneEndpoint: Bool {
         return (alchemyNetwork != nil) != (fallbackRPCURL != nil)
@@ -44,7 +45,8 @@ struct NetworkCatalogRecord: Codable, Equatable {
                                symbol: nativeCurrency.symbol,
                                rpcEndpoint: .catalog(
                                    rpcURL,
-                                   alchemyNetwork: alchemyNetwork
+                                   alchemyNetwork: alchemyNetwork,
+                                   feeMarketHint: feeMarketHint
                                ),
                                isTestnet: isTestnet,
                                mightShowPrice: displayPrice,
@@ -65,6 +67,7 @@ enum NetworkCatalogError: Error, Equatable {
     case invalidAlchemyNetwork(Int)
     case invalidFallbackRPCURL(Int)
     case invalidAccountDisabledAlchemyNetwork(Int)
+    case invalidFeeMarketHint(Int)
 
 }
 
@@ -140,6 +143,9 @@ struct NetworkCatalog {
                 guard alchemyNetworks.insert(accountDisabledAlchemyNetwork).inserted else {
                     throw NetworkCatalogError.duplicateAlchemyNetwork(accountDisabledAlchemyNetwork)
                 }
+            }
+            guard record.feeMarketHint.checkedAtDate != nil else {
+                throw NetworkCatalogError.invalidFeeMarketHint(record.chainId)
             }
             guard recordsByChainId.updateValue(record, forKey: record.chainId) == nil else {
                 throw NetworkCatalogError.duplicateChainId(record.chainId)

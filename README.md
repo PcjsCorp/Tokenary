@@ -10,3 +10,4 @@ download on the [app store](https://lil.org/get)
 ## development
 
 * run the xcode project
+* recurring manual chores live in [MAINTENANCE.md](MAINTENANCE.md)

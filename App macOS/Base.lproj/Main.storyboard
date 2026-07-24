@@ -1441,6 +1441,7 @@ DQ
                     </view>
                     <connections>
                         <outlet property="cancelButton" destination="sUu-V8-fLA" id="J4U-gM-spX"/>
+                        <outlet property="editTransactionButton" destination="qg7-RB-Lb5" id="xQj-kh-2dP"/>
                         <outlet property="fastSpeedLabel" destination="WJV-V3-GWm" id="lzX-wu-MdJ"/>
                         <outlet property="gweiLabel" destination="xby-TM-Wec" id="3LN-nr-WNA"/>
                         <outlet property="infoTextViewBottomConstraint" destination="fxj-xB-6jl" id="f2p-uL-Wac"/>

@@ -133,6 +133,49 @@ test("registers its production message listener", () => {
     assert.equal(harness.runtimeListener(), harness.context.handleOnMessage);
 });
 
+test("removes only the matching Solana configuration for unauthorized responses", async () => {
+    const host = "wallet.example";
+    const matchingPublicKey = "matching-public-key";
+    const storedConfigurations = {
+        [host]: [
+            { provider: "ethereum", chainId: "0x1" },
+            { provider: "solana", publicKey: matchingPublicKey },
+            { provider: "solana", publicKey: "another-public-key" },
+        ],
+    };
+    const writes = [];
+    const harness = makeHarness({
+        storageGet: key => Promise.resolve({
+            [key]: storedConfigurations[key],
+        }),
+        storageSet: value => {
+            const copiedValue = normalized(value);
+            writes.push(copiedValue);
+            Object.assign(storedConfigurations, copiedValue);
+            return Promise.resolve();
+        },
+    });
+
+    harness.context.updateStoredConfigurationIfNeeded(host, {
+        configurationToStore: {
+            provider: "solana",
+            publicKey: "replacement-public-key",
+        },
+        error: "Unauthorized",
+        errorCode: 4100,
+        errorPublicKey: matchingPublicKey,
+        provider: "solana",
+    });
+    await settlePromises();
+
+    assert.deepEqual(writes, [{
+        [host]: [
+            { provider: "ethereum", chainId: "0x1" },
+            { provider: "solana", publicKey: "another-public-key" },
+        ],
+    }]);
+});
+
 test("skips configurations that cannot use Alchemy", () => {
     const harness = makeHarness();
 
@@ -238,7 +281,7 @@ test("continues forwarding and responding to RPC while prewarm is pending", asyn
             subject: "rpc",
             provider: "ethereum",
             chainId: "0x1",
-            body: "{\"method\":\"eth_chainId\"}",
+            body: "{\"id\":42,\"method\":\"eth_chainId\"}",
         },
         {},
         response => responses.push(normalized(response))
@@ -263,7 +306,7 @@ test("continues forwarding and responding to RPC while prewarm is pending", asyn
                 subject: "rpc",
                 provider: "ethereum",
                 chainId: "0x1",
-                body: "{\"method\":\"eth_chainId\"}",
+                body: "{\"id\":42,\"method\":\"eth_chainId\"}",
             },
         },
     ]);

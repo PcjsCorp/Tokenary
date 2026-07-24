@@ -2,6 +2,30 @@
 
 import Foundation
 
+struct ProviderResponseError: Equatable {
+
+    enum Context: Equatable {
+        case dataJSON(String)
+        case unauthorizedPublicKey(String)
+        case transactionSignature(String)
+    }
+
+    let message: String
+    let code: Int?
+    let context: Context?
+
+    init(
+        message: String,
+        code: Int? = nil,
+        context: Context? = nil
+    ) {
+        self.message = message
+        self.code = code
+        self.context = context
+    }
+
+}
+
 struct ResponseToExtension {
     
     let id: Int
@@ -49,44 +73,54 @@ struct ResponseToExtension {
             }
         }
     }
-    
-    init(for request: SafariRequest,
-         body: Body? = nil,
-         error: String? = nil,
-         errorCode: Int? = nil,
-         errorPublicKey: String? = nil,
-         errorSignature: String? = nil) {
+
+    enum Payload {
+        case body(Body)
+        case error(ProviderResponseError)
+    }
+
+    init(
+        for request: SafariRequest,
+        payload: Payload? = nil
+    ) {
         self.id = request.id
         var json: [String: Any] = [
             "id": request.id,
             "name": request.name
         ]
-        
-        if let error = error {
-            json["error"] = error
+
+        switch payload {
+        case .body(let body):
+            let bodyJSON = body.json
+            json.merge(bodyJSON) { current, _ in current }
+
+            if request.body.value.responseUpdatesStoredConfiguration {
+                if let bodies = bodyJSON["bodies"] {
+                    json["configurationToStore"] = bodies
+                } else {
+                    json["configurationToStore"] = bodyJSON
+                }
+            }
+        case .error(let error):
+            json["error"] = error.message
             json["provider"] = request.provider.rawValue
-            if let errorCode {
-                json["errorCode"] = errorCode
+            if let code = error.code {
+                json["errorCode"] = code
             }
-            if let errorPublicKey {
-                json["errorPublicKey"] = errorPublicKey
+            switch error.context {
+            case .dataJSON(let dataJSON):
+                json["errorDataJSON"] = dataJSON
+            case .unauthorizedPublicKey(let publicKey):
+                json["errorPublicKey"] = publicKey
+            case .transactionSignature(let signature):
+                json["errorSignature"] = signature
+            case nil:
+                break
             }
-            if let errorSignature {
-                json["errorSignature"] = errorSignature
-            }
+        case nil:
+            break
         }
-        
-        let bodyJSON = body?.json ?? [:]
-        json.merge(bodyJSON) { (current, _) in current }
-                
-        if request.body.value.responseUpdatesStoredConfiguration, error == nil {
-            if let bodies = bodyJSON["bodies"] {
-                json["configurationToStore"] = bodies
-            } else {
-                json["configurationToStore"] = bodyJSON
-            }
-        }
-        
+
         self.json = json
     }
     

@@ -15,20 +15,6 @@ struct DappRequestProcessor {
         let approvalMessage: String
     }
 
-    private struct SolanaProviderResponseError {
-        let message: String
-        let code: Int
-        let publicKey: String?
-        let signature: String?
-
-        init(message: String, code: Int, publicKey: String? = nil, signature: String? = nil) {
-            self.message = message
-            self.code = code
-            self.publicKey = publicKey
-            self.signature = signature
-        }
-    }
-
     private enum SolanaProviderError {
         case canceled
         case failedToSign
@@ -37,7 +23,7 @@ struct DappRequestProcessor {
         case unauthorized(publicKey: String)
         case sendTransaction(Solana.SendTransactionError)
 
-        var responseError: SolanaProviderResponseError {
+        var responseError: ProviderResponseError {
             switch self {
             case .canceled:
                 return .init(message: Strings.canceled, code: 4001)
@@ -48,7 +34,11 @@ struct DappRequestProcessor {
             case .malformedPayload:
                 return .init(message: Strings.somethingWentWrong, code: 4200)
             case .unauthorized(let publicKey):
-                return .init(message: Strings.providerNotReady, code: 4100, publicKey: publicKey)
+                return .init(
+                    message: Strings.providerNotReady,
+                    code: 4100,
+                    context: .unauthorizedPublicKey(publicKey)
+                )
             case .sendTransaction(let error):
                 switch error {
                 case .invalidMessage:
@@ -58,9 +48,17 @@ struct DappRequestProcessor {
                 case .blockhashNotFound:
                     return .init(message: Strings.solanaBlockhashNotFound, code: -32003)
                 case .confirmationFailed(let signature, let message, let code):
-                    return .init(message: message, code: code ?? -32005, signature: signature)
+                    return .init(
+                        message: message,
+                        code: code ?? -32005,
+                        context: .transactionSignature(signature)
+                    )
                 case .confirmationTimedOut(let signature):
-                    return .init(message: Strings.solanaConfirmationTimedOut, code: -32005, signature: signature)
+                    return .init(
+                        message: Strings.solanaConfirmationTimedOut,
+                        code: -32005,
+                        context: .transactionSignature(signature)
+                    )
                 case .unsupportedMultiSignature:
                     return .init(message: Strings.failedToSend, code: 4200)
                 case .rpcError(let message, let code):
@@ -81,7 +79,10 @@ struct DappRequestProcessor {
                     if request.provider == .solana {
                         respond(to: request, solanaError: .internalError, completion: completion)
                     } else {
-                        respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+                        respondGenericFailure(
+                            to: request,
+                            completion: completion
+                        )
                     }
                 }
             }
@@ -110,7 +111,7 @@ struct DappRequestProcessor {
                                                  network: network,
                                                  source: .safariExtension) { chain, specificWalletAccounts in
                     guard let specificWalletAccounts else {
-                        respond(to: request, error: Strings.canceled, completion: completion)
+                        respondUserRejected(to: request, completion: completion)
                         return
                     }
 
@@ -119,7 +120,10 @@ struct DappRequestProcessor {
                         selectedAccountResponseBody(for: $0.account, chain: resolvedChain)
                     }
                     guard specificProviderBodies.count == specificWalletAccounts.count else {
-                        respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+                        respondGenericFailure(
+                            to: request,
+                            completion: completion
+                        )
                         return
                     }
 
@@ -549,15 +553,21 @@ struct DappRequestProcessor {
                     let responseBody = ResponseToExtension.Ethereum(results: [ethereumRequest.address], chainId: chainToAdd.chainId)
                     respond(to: request, body: .ethereum(responseBody), completion: completion)
                 case .catalogOwnedButUnavailable:
-                    respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+                    respondGenericFailure(
+                        to: request,
+                        completion: completion
+                    )
                 case .unknown:
                     guard chainToAdd.defaultRpcURL != nil else {
-                        respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+                        respondGenericFailure(
+                            to: request,
+                            completion: completion
+                        )
                         break
                     }
                     let action = AddEthereumChainAction(chainToAdd: chainToAdd) { didApprove in
                         guard didApprove else {
-                            respond(to: request, error: Strings.canceled, completion: completion)
+                            respondUserRejected(to: request, completion: completion)
                             return
                         }
                         let didCompleteAddition = completeApprovedEthereumChainAddition(
@@ -565,7 +575,10 @@ struct DappRequestProcessor {
                             persist: { Networks.add(networkFromDapp: chainToAdd) }
                         )
                         guard didCompleteAddition else {
-                            respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+                            respondGenericFailure(
+                                to: request,
+                                completion: completion
+                            )
                             return
                         }
 
@@ -578,7 +591,10 @@ struct DappRequestProcessor {
                     return .addEthereumChain(action)
                 }
             } else {
-                respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+                respondGenericFailure(
+                    to: request,
+                    completion: completion
+                )
             }
         case .requestAccounts:
             let action = SelectAccountAction(peer: peerMeta,
@@ -592,7 +608,7 @@ struct DappRequestProcessor {
                    let responseBody = ethereumResponseBody(for: specificWalletAccount.account, chain: chain) {
                     respond(to: request, body: responseBody, completion: completion)
                 } else {
-                    respond(to: request, error: Strings.canceled, completion: completion)
+                    respondUserRejected(to: request, completion: completion)
                 }
             }
             return .selectAccount(action)
@@ -606,12 +622,15 @@ struct DappRequestProcessor {
                         guard let privateKey = ethereumPrivateKey(walletId: walletId, account: account, request: request, completion: completion) else { return }
                         signTypedData(privateKey: privateKey, raw: raw, request: request, completion: completion)
                     } else {
-                        respond(to: request, error: Strings.failedToSign, completion: completion)
+                        respondUserRejected(to: request, completion: completion)
                     }
                 }
                 return .approveMessage(action)
             } else {
-                respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+                respondGenericFailure(
+                    to: request,
+                    completion: completion
+                )
             }
         case .signMessage:
             if let data = ethereumRequest.message,
@@ -623,12 +642,15 @@ struct DappRequestProcessor {
                         guard let privateKey = ethereumPrivateKey(walletId: walletId, account: account, request: request, completion: completion) else { return }
                         signMessage(privateKey: privateKey, data: data, request: request, completion: completion)
                     } else {
-                        respond(to: request, error: Strings.failedToSign, completion: completion)
+                        respondUserRejected(to: request, completion: completion)
                     }
                 }
                 return .approveMessage(action)
             } else {
-                respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+                respondGenericFailure(
+                    to: request,
+                    completion: completion
+                )
             }
         case .signPersonalMessage:
             if let data = ethereumRequest.message,
@@ -641,44 +663,88 @@ struct DappRequestProcessor {
                         guard let privateKey = ethereumPrivateKey(walletId: walletId, account: account, request: request, completion: completion) else { return }
                         signPersonalMessage(privateKey: privateKey, data: data, request: request, completion: completion)
                     } else {
-                        respond(to: request, error: Strings.failedToSign, completion: completion)
+                        respondUserRejected(to: request, completion: completion)
                     }
                 }
                 return .approveMessage(action)
             } else {
-                respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+                respondGenericFailure(
+                    to: request,
+                    completion: completion
+                )
             }
         case .signTransaction:
-            if let transaction = ethereumRequest.transaction,
-               let chainId = ethereumRequest.currentChainId,
-               let chain = Networks.withChainId(chainId),
-               let walletAndAccount = walletAndAccount {
-                let walletId = walletAndAccount.0.id
-                let account = walletAndAccount.1
-                let action = SendTransactionAction(transaction: transaction,
-                                                   chain: chain, walletId: walletId,
-                                                   account: account,
-                                                   peerMeta: peerMeta) { transaction in
-                    if let transaction = transaction {
-                        guard let privateKey = ethereumPrivateKey(walletId: walletId, account: account, request: request, completion: completion) else { return }
-                        sendTransaction(privateKey: privateKey, transaction: transaction, network: chain, respondTo: request, completion: completion)
-                    } else {
-                        respond(to: request, error: Strings.canceled, completion: completion)
-                    }
-                }
-                return .approveTransaction(action)
-            } else {
-                respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+            let transaction: Transaction
+            switch ethereumRequest.transactionParsingResult {
+            case .success(let parsedTransaction):
+                transaction = parsedTransaction
+            case .failure(let error):
+                let providerError = ethereumTransactionProviderError(for: error)
+                respond(
+                    to: request,
+                    error: providerError,
+                    completion: completion
+                )
+                return .none
             }
+            guard let chainId = ethereumRequest.currentChainId,
+                  let chain = Networks.withChainId(chainId) else {
+                respond(
+                    to: request,
+                    error: .init(
+                        message: Strings.somethingWentWrong,
+                        code: -32_603
+                    ),
+                    completion: completion
+                )
+                return .none
+            }
+            guard let walletAndAccount else {
+                respond(
+                    to: request,
+                    error: .init(
+                        message: Strings.providerNotReady,
+                        code: 4100
+                    ),
+                    completion: completion
+                )
+                return .none
+            }
+
+            let walletId = walletAndAccount.0.id
+            let account = walletAndAccount.1
+            let action = SendTransactionAction(transaction: transaction,
+                                               chain: chain, walletId: walletId,
+                                               account: account,
+                                               peerMeta: peerMeta) { transaction in
+                if let transaction = transaction {
+                    guard let privateKey = ethereumPrivateKey(walletId: walletId, account: account, request: request, completion: completion) else { return }
+                    sendTransaction(privateKey: privateKey, transaction: transaction, network: chain, respondTo: request, completion: completion)
+                } else {
+                    respondUserRejected(to: request, completion: completion)
+                }
+            }
+            return .approveTransaction(action)
         case .ecRecover:
             if let (signature, message) = ethereumRequest.signatureAndMessage,
                let recovered = ethereum.recover(signature: signature, message: message) {
                 respond(to: request, body: .ethereum(.init(result: recovered)), completion: completion)
             } else {
-                respond(to: request, error: Strings.failedToVerify, completion: completion)
+                respond(
+                    to: request,
+                    error: .init(message: Strings.failedToVerify),
+                    completion: completion
+                )
             }
         case .switchEthereumChain:
-            respond(to: request, error: Strings.somethingWentWrong, completion: completion)
+            respond(
+                to: request,
+                error: .init(
+                    message: Strings.unrecognizedChainId,
+                    code: 4902
+                ),
+                completion: completion
+            )
         }
         return .none
     }
@@ -706,7 +772,7 @@ struct DappRequestProcessor {
 
     private static func ethereumPrivateKey(walletId: String, account: WalletAccount, request: SafariRequest, completion: (String?) -> Void) -> WalletPrivateKey? {
         guard let privateKey = walletsManager.getPrivateKey(walletId: walletId, account: account) else {
-            respond(to: request, error: Strings.failedToSign, completion: completion)
+            respondSigningFailed(to: request, completion: completion)
             return nil
         }
         return privateKey
@@ -716,7 +782,7 @@ struct DappRequestProcessor {
         if let signed = try? ethereum.sign(typedData: raw, privateKey: privateKey) {
             respond(to: request, body: .ethereum(.init(result: signed)), completion: completion)
         } else {
-            respond(to: request, error: Strings.failedToSign, completion: completion)
+            respondSigningFailed(to: request, completion: completion)
         }
     }
     
@@ -724,7 +790,7 @@ struct DappRequestProcessor {
         if let signed = try? ethereum.sign(data: data, privateKey: privateKey) {
             respond(to: request, body: .ethereum(.init(result: signed)), completion: completion)
         } else {
-            respond(to: request, error: Strings.failedToSign, completion: completion)
+            respondSigningFailed(to: request, completion: completion)
         }
     }
     
@@ -732,21 +798,84 @@ struct DappRequestProcessor {
         if let signed = try? ethereum.signPersonalMessage(data: data, privateKey: privateKey) {
             respond(to: request, body: .ethereum(.init(result: signed)), completion: completion)
         } else {
-            respond(to: request, error: Strings.failedToSign, completion: completion)
+            respondSigningFailed(to: request, completion: completion)
         }
     }
      
     private static func sendTransaction(privateKey: WalletPrivateKey, transaction: Transaction, network: EthereumNetwork, respondTo: SafariRequest?, completion: @escaping (String?) -> Void) {
-        ethereum.send(transaction: transaction, privateKey: privateKey, network: network) { hash in
-            if let request = respondTo {
-                if let hash = hash {
-                    DappRequestProcessor.respond(to: request, body: .ethereum(.init(result: hash)), completion: completion)
+        ethereum.send(
+            transaction: transaction,
+            privateKey: privateKey,
+            network: network
+        ) { (result: Result<String, EthereumSendFailure>) in
+            switch result {
+            case .success(let hash):
+                if let request = respondTo {
+                    DappRequestProcessor.respond(
+                        to: request,
+                        body: .ethereum(.init(result: hash)),
+                        completion: completion
+                    )
                 } else {
-                    respond(to: request, error: Strings.failedToSend, completion: completion)
+                    completion(hash)
                 }
-            } else {
-                completion(hash)
+            case .failure(let failure):
+                guard let request = respondTo else {
+                    completion(nil)
+                    return
+                }
+                let providerError = ethereumProviderError(for: failure)
+                respond(
+                    to: request,
+                    error: providerError,
+                    completion: completion
+                )
             }
+        }
+    }
+
+    static func ethereumTransactionProviderError(
+        for error: TransactionParsingError
+    ) -> ProviderResponseError {
+        switch error {
+        case .invalidParameters:
+            return .init(
+                message: Strings.somethingWentWrong,
+                code: -32_602
+            )
+        case .unsupportedTransactionType:
+            return .init(
+                message: Strings.somethingWentWrong,
+                code: 4200
+            )
+        }
+    }
+
+    static func ethereumProviderError(
+        for failure: EthereumSendFailure
+    ) -> ProviderResponseError {
+        switch failure {
+        case .rpc(.serverError(let code, let message, let dataJSON)):
+            return .init(
+                message: message,
+                code: code,
+                context: dataJSON.map(ProviderResponseError.Context.dataJSON)
+            )
+        case .invalidTransaction:
+            return .init(
+                message: Strings.somethingWentWrong,
+                code: -32_603
+            )
+        case .failedToSign:
+            return .init(
+                message: Strings.failedToSign,
+                code: -32_603
+            )
+        case .rpc(.unknown), .transport:
+            return .init(
+                message: Strings.failedToSend,
+                code: -32_603
+            )
         }
     }
 
@@ -843,31 +972,63 @@ struct DappRequestProcessor {
     }
 
     private static func respond(to safariRequest: SafariRequest, body: ResponseToExtension.Body, completion: (String?) -> Void) {
-        let response = ResponseToExtension(for: safariRequest, body: body)
+        let response = ResponseToExtension(
+            for: safariRequest,
+            payload: .body(body)
+        )
         sendResponse(response, completion: completion)
     }
 
     private static func respond(to safariRequest: SafariRequest, solanaError: SolanaProviderError, completion: (String?) -> Void) {
-        let responseError = solanaError.responseError
-        respond(to: safariRequest,
-                error: responseError.message,
-                errorCode: responseError.code,
-                errorPublicKey: responseError.publicKey,
-                errorSignature: responseError.signature,
-                completion: completion)
+        respond(
+            to: safariRequest,
+            error: solanaError.responseError,
+            completion: completion
+        )
+    }
+
+    private static func respondGenericFailure(
+        to safariRequest: SafariRequest,
+        completion: (String?) -> Void
+    ) {
+        respond(
+            to: safariRequest,
+            error: .init(message: Strings.somethingWentWrong),
+            completion: completion
+        )
+    }
+
+    private static func respondUserRejected(
+        to safariRequest: SafariRequest,
+        completion: (String?) -> Void
+    ) {
+        respond(
+            to: safariRequest,
+            error: .init(message: Strings.canceled, code: 4001),
+            completion: completion
+        )
+    }
+
+    private static func respondSigningFailed(
+        to safariRequest: SafariRequest,
+        completion: (String?) -> Void
+    ) {
+        respond(
+            to: safariRequest,
+            error: .init(message: Strings.failedToSign, code: -32_603),
+            completion: completion
+        )
     }
     
-    private static func respond(to safariRequest: SafariRequest,
-                                error: String,
-                                errorCode: Int? = nil,
-                                errorPublicKey: String? = nil,
-                                errorSignature: String? = nil,
-                                completion: (String?) -> Void) {
-        let response = ResponseToExtension(for: safariRequest,
-                                           error: error,
-                                           errorCode: errorCode,
-                                           errorPublicKey: errorPublicKey,
-                                           errorSignature: errorSignature)
+    private static func respond(
+        to safariRequest: SafariRequest,
+        error: ProviderResponseError,
+        completion: (String?) -> Void
+    ) {
+        let response = ResponseToExtension(
+            for: safariRequest,
+            payload: .error(error)
+        )
         sendResponse(response, completion: completion)
     }
     

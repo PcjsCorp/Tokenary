@@ -144,7 +144,114 @@ final class NetworkCatalogTests: XCTestCase {
                 network.allowsAlchemyAuthorization,
                 record.alchemyNetwork != nil
             )
+            XCTAssertEqual(
+                network.rpcEndpoint.feeMarketHint,
+                record.feeMarketHint
+            )
         }
+    }
+
+    func testCatalogFeeMarketHintsAreRequiredExactAndConservative() throws {
+        let catalog = try loadedCatalog()
+        let ethereum = try XCTUnwrap(catalog.record(chainId: 1))
+        let gnosis = try XCTUnwrap(catalog.record(chainId: 100))
+
+        XCTAssertEqual(ethereum.feeMarketHint.support, .eip1559)
+        XCTAssertEqual(gnosis.feeMarketHint.support, .eip1559)
+
+        for record in catalog.records {
+            let rpcURL = try XCTUnwrap(record.rpcURL())
+            XCTAssertEqual(
+                record.feeMarketHint.observedEndpoint,
+                rpcURL.absoluteString
+            )
+            XCTAssertNotNil(record.feeMarketHint.checkedAtDate)
+        }
+    }
+
+    func testFeeMarketHintProjectionAndEndpointIdentity() throws {
+        let checkedAt = "2026-07-23T00:00:00Z"
+        let canonicalURL = try XCTUnwrap(
+            AlchemyRPC.url(network: "eth-mainnet")
+        )
+        let hint = EthereumFeeMarketHint(
+            support: .eip1559,
+            checkedAt: checkedAt,
+            observedEndpoint: canonicalURL.absoluteString
+        )
+        let endpoint = EthereumRPCEndpoint.catalog(
+            canonicalURL,
+            alchemyNetwork: "eth-mainnet",
+            feeMarketHint: hint
+        )
+
+        XCTAssertEqual(endpoint.catalogFeeMarketObservation(), .eip1559)
+        XCTAssertEqual(endpoint.catalogFeeMarketSupport(), .eip1559)
+        XCTAssertFalse(endpoint.requiresFeeMarketDetection())
+
+        let unknownEndpoint = EthereumRPCEndpoint.catalog(
+            canonicalURL,
+            alchemyNetwork: "eth-mainnet",
+            feeMarketHint: EthereumFeeMarketHint(
+                support: .unknown,
+                checkedAt: checkedAt,
+                observedEndpoint: canonicalURL.absoluteString
+            )
+        )
+        XCTAssertNil(unknownEndpoint.catalogFeeMarketSupport())
+        XCTAssertTrue(unknownEndpoint.requiresFeeMarketDetection())
+
+        let legacyEndpoint = EthereumRPCEndpoint.catalog(
+            canonicalURL,
+            alchemyNetwork: "eth-mainnet",
+            feeMarketHint: EthereumFeeMarketHint(
+                support: .legacy,
+                checkedAt: checkedAt,
+                observedEndpoint: canonicalURL.absoluteString
+            )
+        )
+        XCTAssertEqual(
+            legacyEndpoint.catalogFeeMarketObservation(),
+            .legacy
+        )
+        XCTAssertNil(legacyEndpoint.catalogFeeMarketSupport())
+        XCTAssertTrue(legacyEndpoint.requiresFeeMarketDetection())
+
+        let mismatchedURL = try XCTUnwrap(
+            URL(string: "https://eth-mainnet.g.alchemy.com/v2?other=1")
+        )
+        let mismatchedEndpoint = EthereumRPCEndpoint.catalog(
+            mismatchedURL,
+            alchemyNetwork: "eth-mainnet",
+            feeMarketHint: hint
+        )
+        XCTAssertNil(mismatchedEndpoint.feeMarketHint)
+        XCTAssertTrue(mismatchedEndpoint.requiresFeeMarketDetection())
+    }
+
+    func testEndpointEqualityAndHashIgnoreFeeMarketTimestamp() throws {
+        let url = try XCTUnwrap(AlchemyRPC.url(network: "eth-mainnet"))
+        let first = EthereumRPCEndpoint.catalog(
+            url,
+            alchemyNetwork: "eth-mainnet",
+            feeMarketHint: EthereumFeeMarketHint(
+                support: .eip1559,
+                checkedAt: "2026-07-23T00:00:00Z",
+                observedEndpoint: url.absoluteString
+            )
+        )
+        let second = EthereumRPCEndpoint.catalog(
+            url,
+            alchemyNetwork: "eth-mainnet",
+            feeMarketHint: EthereumFeeMarketHint(
+                support: .legacy,
+                checkedAt: "2026-07-24T00:00:00Z",
+                observedEndpoint: url.absoluteString
+            )
+        )
+
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(Set([first, second]).count, 1)
     }
 
     func testEveryCatalogEndpointHasOneOwner() throws {
@@ -492,6 +599,7 @@ final class NetworkCatalogTests: XCTestCase {
         XCTAssertEqual(object["nodeURLString"] as? String, rpcURL.absoluteString)
         XCTAssertNil(object["rpcEndpoint"])
         XCTAssertNil(object["allowsAlchemyAuthorization"])
+        XCTAssertNil(object["feeMarketHint"])
 
         let decoded = try JSONDecoder().decode(
             EthereumNetwork.self,
@@ -499,6 +607,8 @@ final class NetworkCatalogTests: XCTestCase {
         )
         XCTAssertEqual(decoded.nodeURLString, rpcURL.absoluteString)
         XCTAssertFalse(decoded.allowsAlchemyAuthorization)
+        XCTAssertNil(decoded.rpcEndpoint.feeMarketHint)
+        XCTAssertTrue(decoded.rpcEndpoint.requiresFeeMarketDetection())
     }
 
     func testFallbackOverlapRemainsDormantAndCatalogOwned() throws {
@@ -1024,6 +1134,47 @@ final class NetworkCatalogTests: XCTestCase {
         ])) { error in
             XCTAssertEqual(error as? NetworkCatalogError, .invalidExplorerURL(1))
         }
+
+        XCTAssertThrowsError(try NetworkCatalog(records: [
+            record(
+                chainId: 1,
+                alchemyNetwork: "eth-mainnet",
+                feeMarketCheckedAt: "not-an-iso8601-date"
+            ),
+        ])) { error in
+            XCTAssertEqual(error as? NetworkCatalogError, .invalidFeeMarketHint(1))
+        }
+    }
+
+    func testEndpointMismatchedFeeMarketHintDoesNotDisableCatalog()
+        throws {
+        let catalog = try NetworkCatalog(records: [
+            record(
+                chainId: 1,
+                alchemyNetwork: "eth-mainnet",
+                feeMarketSupport: .eip1559,
+                feeMarketObservedEndpoint: "https://rpc.example"
+            ),
+        ])
+        let resolver = NetworkResolver(
+            catalog: catalog,
+            catalogOwnedChainIds: [1],
+            customSnapshot: { .empty }
+        )
+
+        XCTAssertTrue(resolver.catalogIsAvailable)
+        let resolved = try XCTUnwrap(
+            resolver.resolve(chainId: 1).resolvedNetwork
+        )
+        XCTAssertNil(resolved.rpcEndpoint.feeMarketHint)
+        XCTAssertTrue(
+            resolved.rpcEndpoint.requiresFeeMarketDetection()
+        )
+        XCTAssertTrue(resolved.allowsAlchemyAuthorization)
+        XCTAssertEqual(
+            resolved.rpcURL.absoluteString,
+            "https://eth-mainnet.g.alchemy.com/v2"
+        )
     }
 
     func testCatalogDataRejectsInvalidJSONAndMissingRequiredFields() {
@@ -1095,7 +1246,11 @@ final class NetworkCatalogTests: XCTestCase {
         for index in 0..<requestCount {
             let url = try XCTUnwrap(URL(string: "https://rpc.example/request-\(index)"))
             let body = try JSONSerialization.data(withJSONObject: ["request": index])
-            client.send(endpoint: .unauthenticated(url), body: body) { response in
+            client.send(
+                endpoint: .unauthenticated(url),
+                body: body,
+                expectedResponseID: index
+            ) { response in
                 resultLock.lock()
                 defer {
                     resultLock.unlock()
@@ -1176,7 +1331,8 @@ final class NetworkCatalogTests: XCTestCase {
 
         client.send(
             endpoint: alchemyEndpoint(url),
-            body: Data(#"{"method":"eth_chainId"}"#.utf8)
+            body: Data(#"{"method":"eth_chainId"}"#.utf8),
+            expectedResponseID: 1
         ) { response in
             XCTAssertEqual(response?["result"] as? String, "ok")
             completion.fulfill()
@@ -1223,7 +1379,8 @@ final class NetworkCatalogTests: XCTestCase {
 
         client.send(
             endpoint: alchemyEndpoint(url),
-            body: Data(#"{"method":"eth_chainId"}"#.utf8)
+            body: Data(#"{"method":"eth_chainId"}"#.utf8),
+            expectedResponseID: 1
         ) { response in
             XCTAssertEqual(response?["result"] as? String, "ok")
             completion.fulfill()
@@ -1236,7 +1393,7 @@ final class NetworkCatalogTests: XCTestCase {
         XCTAssertEqual(authorizationProvider.invalidationCallCount, 0)
     }
 
-    func testSafariRPCClientReplaysRawTransactionOnceAfter401() throws {
+    func testSafariRPCClientNeverReplaysRawTransactionAfter401() throws {
         let url = try XCTUnwrap(
             URL(string: "https://eth-mainnet.g.alchemy.com/v2")
         )
@@ -1246,18 +1403,18 @@ final class NetworkCatalogTests: XCTestCase {
         )
         let session = makeSafariAuthorizationSession { request in
             let attempt = requestCount.increment()
-            XCTAssertLessThanOrEqual(attempt, 2)
+            XCTAssertEqual(attempt, 1)
             XCTAssertEqual(
                 request.value(forHTTPHeaderField: "Authorization"),
-                attempt == 1
-                    ? "Bearer rejected-token"
-                    : "Bearer replacement-token"
+                "Bearer rejected-token"
             )
             XCTAssertEqual(try Self.bodyData(from: request), body)
-            if attempt == 1 {
-                return (401, Data(#"{"error":"unauthorized"}"#.utf8))
-            }
-            return (200, Data(#"{"result":"transaction-hash"}"#.utf8))
+            return (
+                401,
+                Data(
+                    #"[{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"FeeTooLow","data":{"reason":"EffectivePriorityFeePerGas too low"}}}]"#.utf8
+                )
+            )
         }
         defer {
             session.invalidateAndCancel()
@@ -1272,23 +1429,347 @@ final class NetworkCatalogTests: XCTestCase {
             authorizationProvider: authorizationProvider
         )
         let completion = expectation(
-            description: "raw transaction recovered with replacement authorization"
+            description: "raw transaction rejection returned without replay"
         )
         completion.assertForOverFulfill = true
 
         client.send(
             endpoint: alchemyEndpoint(url),
-            body: body
+            body: body,
+            expectedResponseID: 1
         ) { response in
-            XCTAssertEqual(response?["result"] as? String, "transaction-hash")
+            XCTAssertEqual(response?["jsonrpc"] as? String, "2.0")
+            XCTAssertEqual(response?["id"] as? Int, 1)
+            let error = response?["error"] as? [String: Any]
+            XCTAssertEqual(error?["code"] as? Int, -32_000)
+            XCTAssertEqual(error?["message"] as? String, "FeeTooLow")
+            let data = error?["data"] as? [String: Any]
+            XCTAssertEqual(
+                data?["reason"] as? String,
+                "EffectivePriorityFeePerGas too low"
+            )
             completion.fulfill()
         }
 
         wait(for: [completion], timeout: 2)
-        XCTAssertEqual(requestCount.value, 2)
+        XCTAssertEqual(requestCount.value, 1)
         XCTAssertEqual(authorizationProvider.authorizationCallCount, 1)
-        XCTAssertEqual(authorizationProvider.replacementCallCount, 1)
-        XCTAssertEqual(authorizationProvider.invalidationCallCount, 0)
+        XCTAssertEqual(authorizationProvider.replacementCallCount, 0)
+        XCTAssertEqual(authorizationProvider.invalidationCallCount, 1)
+        XCTAssertEqual(
+            authorizationProvider.invalidatedTokens,
+            ["rejected-token"]
+        )
+    }
+
+    func testSafariRPCClientReturnsUniqueMatchingDictionaryFromArrayResponse()
+        throws {
+        let url = try XCTUnwrap(URL(string: "https://rpc.example"))
+        let session = makeSafariAuthorizationSession { _ in
+            return (
+                200,
+                Data(
+                    #"[{"jsonrpc":"2.0","id":3,"result":"wrong"},null,{"jsonrpc":"2.0","id":2,"result":"matched"}]"#.utf8
+                )
+            )
+        }
+        defer {
+            session.invalidateAndCancel()
+            SafariAuthorizationURLProtocol.removeRequestHandler()
+        }
+        let client = SafariRPCClient(urlSession: session)
+        let completion = expectation(
+            description: "Safari RPC returned the matching array dictionary"
+        )
+
+        client.send(
+            endpoint: .unauthenticated(url),
+            body: Data(#"{"jsonrpc":"2.0","id":2,"method":"eth_chainId"}"#.utf8),
+            expectedResponseID: 2
+        ) { response in
+            XCTAssertEqual(response?["id"] as? Int, 2)
+            XCTAssertEqual(response?["result"] as? String, "matched")
+            completion.fulfill()
+        }
+
+        wait(for: [completion], timeout: 2)
+    }
+
+    func testSafariRPCClientRejectsMismatchedAndAmbiguousResponseIDs()
+        throws {
+        let fixtures: [(path: String, response: String)] = [
+            (
+                "wrong-top-level",
+                #"{"jsonrpc":"2.0","id":3,"result":"wrong"}"#
+            ),
+            (
+                "no-array-match",
+                #"[{"jsonrpc":"2.0","id":3,"result":"wrong"}]"#
+            ),
+            (
+                "duplicate-array-match",
+                #"[{"jsonrpc":"2.0","id":1,"result":"first"},{"jsonrpc":"2.0","id":1,"result":"second"}]"#
+            ),
+            (
+                "boolean-top-level",
+                #"{"jsonrpc":"2.0","id":true,"result":"wrong"}"#
+            ),
+            (
+                "string-mismatch",
+                #"{"jsonrpc":"2.0","id":"3","result":"wrong"}"#
+            ),
+            (
+                "non-numeric-string",
+                #"{"jsonrpc":"2.0","id":"abc","result":"wrong"}"#
+            ),
+            (
+                "duplicate-mixed-type-match",
+                #"[{"jsonrpc":"2.0","id":1,"result":"first"},{"jsonrpc":"2.0","id":"1","result":"second"}]"#
+            ),
+        ]
+        let session = makeSafariAuthorizationSession { request in
+            let path = request.url?.lastPathComponent
+            let fixture = fixtures.first { $0.path == path }
+            return (
+                200,
+                Data((fixture?.response ?? "not-json").utf8)
+            )
+        }
+        defer {
+            session.invalidateAndCancel()
+            SafariAuthorizationURLProtocol.removeRequestHandler()
+        }
+        let client = SafariRPCClient(urlSession: session)
+
+        for fixture in fixtures {
+            let url = try XCTUnwrap(
+                URL(string: "https://rpc.example/\(fixture.path)")
+            )
+            let completion = expectation(
+                description: "Safari RPC rejected \(fixture.path)"
+            )
+            client.send(
+                endpoint: .unauthenticated(url),
+                body: Data(
+                    #"{"jsonrpc":"2.0","id":1,"method":"eth_chainId"}"#.utf8
+                ),
+                expectedResponseID: 1
+            ) { response in
+                XCTAssertNil(response, fixture.path)
+                completion.fulfill()
+            }
+            wait(for: [completion], timeout: 2)
+        }
+    }
+
+    func testSafariRPCClientAcceptsMissingAndNullTopLevelResponseIDs()
+        throws {
+        let fixtures: [(path: String, response: String)] = [
+            ("missing", #"{"jsonrpc":"2.0","result":"ok"}"#),
+            (
+                "null",
+                #"{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"Parse error"}}"#
+            ),
+        ]
+        let session = makeSafariAuthorizationSession { request in
+            let path = request.url?.lastPathComponent
+            let fixture = fixtures.first { $0.path == path }
+            return (
+                200,
+                Data((fixture?.response ?? "not-json").utf8)
+            )
+        }
+        defer {
+            session.invalidateAndCancel()
+            SafariAuthorizationURLProtocol.removeRequestHandler()
+        }
+        let client = SafariRPCClient(urlSession: session)
+
+        for fixture in fixtures {
+            let url = try XCTUnwrap(
+                URL(string: "https://rpc.example/\(fixture.path)")
+            )
+            let completion = expectation(
+                description: "Safari RPC accepted \(fixture.path)"
+            )
+            client.send(
+                endpoint: .unauthenticated(url),
+                body: Data(
+                    #"{"jsonrpc":"2.0","id":2,"method":"eth_chainId"}"#.utf8
+                ),
+                expectedResponseID: 2
+            ) { response in
+                XCTAssertNotNil(response, fixture.path)
+                XCTAssertEqual(
+                    response?["id"] as? Int,
+                    2,
+                    fixture.path
+                )
+                completion.fulfill()
+            }
+            wait(for: [completion], timeout: 2)
+        }
+    }
+
+    func testSafariRPCClientAcceptsStringResponseIDs() throws {
+        let fixtures: [(path: String, response: String, result: String)] = [
+            (
+                "string-single",
+                #"{"jsonrpc":"2.0","id":"2","result":"ok"}"#,
+                "ok"
+            ),
+            (
+                "string-batch",
+                #"[{"jsonrpc":"2.0","id":"3","result":"wrong"},{"jsonrpc":"2.0","id":"2","result":"matched"}]"#,
+                "matched"
+            ),
+        ]
+        let session = makeSafariAuthorizationSession { request in
+            let path = request.url?.lastPathComponent
+            let fixture = fixtures.first { $0.path == path }
+            return (
+                200,
+                Data((fixture?.response ?? "not-json").utf8)
+            )
+        }
+        defer {
+            session.invalidateAndCancel()
+            SafariAuthorizationURLProtocol.removeRequestHandler()
+        }
+        let client = SafariRPCClient(urlSession: session)
+
+        for fixture in fixtures {
+            let url = try XCTUnwrap(
+                URL(string: "https://rpc.example/\(fixture.path)")
+            )
+            let completion = expectation(
+                description: "Safari RPC accepted \(fixture.path)"
+            )
+            client.send(
+                endpoint: .unauthenticated(url),
+                body: Data(
+                    #"{"jsonrpc":"2.0","id":2,"method":"eth_chainId"}"#.utf8
+                ),
+                expectedResponseID: 2
+            ) { response in
+                XCTAssertNotNil(response, fixture.path)
+                XCTAssertEqual(
+                    response?["id"] as? Int,
+                    2,
+                    fixture.path
+                )
+                XCTAssertEqual(
+                    response?["result"] as? String,
+                    fixture.result,
+                    fixture.path
+                )
+                completion.fulfill()
+            }
+            wait(for: [completion], timeout: 2)
+        }
+    }
+
+    func testSafariRPCClientRejectsNonReplayableAndAuthorizedRedirects()
+        throws {
+        let sourceURL = try XCTUnwrap(URL(string: "https://rpc.example/source"))
+        let redirectURL = try XCTUnwrap(URL(string: "https://rpc.example/redirect"))
+        let rawTransactionBody = Data(
+            #"{"jsonrpc":"2.0","id":1,"method":"eth_sendRawTransaction","params":["0x01"]}"#.utf8
+        )
+        let readBody = Data(
+            #"{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}"#.utf8
+        )
+
+        XCTAssertFalse(
+            SafariRPCClient.allowsRedirect(
+                for: rawTransactionBody,
+                isAuthorized: false
+            )
+        )
+        XCTAssertFalse(
+            SafariRPCClient.allowsRedirect(
+                for: readBody,
+                isAuthorized: true
+            )
+        )
+        XCTAssertTrue(
+            SafariRPCClient.allowsRedirect(
+                for: readBody,
+                isAuthorized: false
+            )
+        )
+
+        let session = URLSession(configuration: .ephemeral)
+        defer {
+            session.invalidateAndCancel()
+        }
+        let task = session.dataTask(with: sourceURL)
+        let delegate = SafariRPCRedirectDelegate(allowsRedirect: false)
+
+        for statusCode in [307, 308] {
+            let completion = expectation(
+                description: "Redirect \(statusCode) was rejected"
+            )
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: sourceURL,
+                    statusCode: statusCode,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Location": redirectURL.absoluteString]
+                )
+            )
+            delegate.urlSession(
+                session,
+                task: task,
+                willPerformHTTPRedirection: response,
+                newRequest: URLRequest(url: redirectURL)
+            ) { request in
+                XCTAssertNil(request)
+                completion.fulfill()
+            }
+            wait(for: [completion], timeout: 1)
+        }
+    }
+
+    func testSafariRPCClientFollowsReplaySafeRedirects() throws {
+        let sourceURL = try XCTUnwrap(URL(string: "https://rpc.example/source"))
+        let redirectURL = try XCTUnwrap(URL(string: "https://rpc.example/redirect"))
+        SafariRedirectURLProtocol.configure(
+            sourceURL: sourceURL,
+            redirectURL: redirectURL,
+            statusCode: 307
+        )
+        defer {
+            SafariRedirectURLProtocol.reset()
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [SafariRedirectURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer {
+            session.invalidateAndCancel()
+        }
+        let client = SafariRPCClient(urlSession: session)
+        let completion = expectation(
+            description: "Replay-safe redirect completed"
+        )
+
+        client.send(
+            endpoint: .unauthenticated(sourceURL),
+            body: Data(
+                #"{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}"#.utf8
+            ),
+            expectedResponseID: 1
+        ) { response in
+            XCTAssertEqual(response?["result"] as? String, "redirected")
+            completion.fulfill()
+        }
+
+        wait(for: [completion], timeout: 2)
+        XCTAssertEqual(SafariRedirectURLProtocol.requestCount, 2)
+        XCTAssertEqual(
+            SafariRedirectURLProtocol.requestedURLs,
+            [sourceURL, redirectURL]
+        )
     }
 
     func testSafariRPCClientDoesNotReplayRawTransactionWhenReplacementIsUnavailable()
@@ -1327,17 +1808,18 @@ final class NetworkCatalogTests: XCTestCase {
 
         client.send(
             endpoint: alchemyEndpoint(url),
-            body: body
+            body: body,
+            expectedResponseID: 1
         ) { response in
-            XCTAssertNil(response)
+            XCTAssertEqual(response?["error"] as? String, "unauthorized")
             completion.fulfill()
         }
 
         wait(for: [completion], timeout: 2)
         XCTAssertEqual(requestCount.value, 1)
         XCTAssertEqual(authorizationProvider.authorizationCallCount, 1)
-        XCTAssertEqual(authorizationProvider.replacementCallCount, 1)
-        XCTAssertEqual(authorizationProvider.invalidationCallCount, 0)
+        XCTAssertEqual(authorizationProvider.replacementCallCount, 0)
+        XCTAssertEqual(authorizationProvider.invalidationCallCount, 1)
     }
 
     func testSafariRPCClientReplaysSupportedReadOnlyMethodsAfter401() throws {
@@ -1381,7 +1863,8 @@ final class NetworkCatalogTests: XCTestCase {
 
         client.send(
             endpoint: alchemyEndpoint(url),
-            body: body
+            body: body,
+            expectedResponseID: 1
         ) { response in
             XCTAssertEqual(response?["result"] as? String, "ok")
             completion.fulfill()
@@ -1442,9 +1925,10 @@ final class NetworkCatalogTests: XCTestCase {
             completion.assertForOverFulfill = true
             client.send(
                 endpoint: alchemyEndpoint(url),
-                body: body
+                body: body,
+                expectedResponseID: index + 1
             ) { response in
-                XCTAssertNil(response)
+                XCTAssertEqual(response?["error"] as? String, "unauthorized")
                 completion.fulfill()
             }
             wait(for: [completion], timeout: 2)
@@ -1470,7 +1954,7 @@ final class NetworkCatalogTests: XCTestCase {
         )
     }
 
-    func testSafariRPCClientInvalidatesSecondRejectedRawTransactionAuthorizationAfterPersistent401()
+    func testSafariRPCClientInvalidatesRejectedRawTransactionAuthorizationWithoutReplay()
         throws {
         let url = try XCTUnwrap(
             URL(string: "https://eth-mainnet.g.alchemy.com/v2")
@@ -1481,12 +1965,10 @@ final class NetworkCatalogTests: XCTestCase {
         )
         let session = makeSafariAuthorizationSession { request in
             let attempt = requestCount.increment()
-            XCTAssertLessThanOrEqual(attempt, 2)
+            XCTAssertEqual(attempt, 1)
             XCTAssertEqual(
                 request.value(forHTTPHeaderField: "Authorization"),
-                attempt == 1
-                    ? "Bearer rejected-token"
-                    : "Bearer replacement-token"
+                "Bearer rejected-token"
             )
             XCTAssertEqual(try Self.bodyData(from: request), body)
             return (401, Data(#"{"error":"unauthorized"}"#.utf8))
@@ -1510,20 +1992,21 @@ final class NetworkCatalogTests: XCTestCase {
 
         client.send(
             endpoint: alchemyEndpoint(url),
-            body: body
+            body: body,
+            expectedResponseID: 1
         ) { response in
-            XCTAssertNil(response)
+            XCTAssertEqual(response?["error"] as? String, "unauthorized")
             completion.fulfill()
         }
 
         wait(for: [completion], timeout: 2)
-        XCTAssertEqual(requestCount.value, 2)
+        XCTAssertEqual(requestCount.value, 1)
         XCTAssertEqual(authorizationProvider.authorizationCallCount, 1)
-        XCTAssertEqual(authorizationProvider.replacementCallCount, 1)
+        XCTAssertEqual(authorizationProvider.replacementCallCount, 0)
         XCTAssertEqual(authorizationProvider.invalidationCallCount, 1)
         XCTAssertEqual(
             authorizationProvider.invalidatedTokens,
-            ["replacement-token"]
+            ["rejected-token"]
         )
         XCTAssertEqual(authorizationProvider.invalidationURLs, [url])
     }
@@ -1556,7 +2039,8 @@ final class NetworkCatalogTests: XCTestCase {
 
         client.send(
             endpoint: alchemyEndpoint(url),
-            body: Data(#"{"method":"eth_chainId"}"#.utf8)
+            body: Data(#"{"method":"eth_chainId"}"#.utf8),
+            expectedResponseID: 1
         ) { response in
             XCTAssertEqual(response?["error"] as? String, "forbidden")
             completion.fulfill()
@@ -1622,7 +2106,8 @@ final class NetworkCatalogTests: XCTestCase {
 
             client.send(
                 endpoint: .unauthenticated(url),
-                body: Data(#"{"method":"eth_chainId"}"#.utf8)
+                body: Data(#"{"method":"eth_chainId"}"#.utf8),
+                expectedResponseID: 1
             ) { response in
                 XCTAssertEqual(response?["result"] as? String, "ok")
                 completion.fulfill()
@@ -1719,7 +2204,8 @@ final class NetworkCatalogTests: XCTestCase {
 
         client.send(
             endpoint: alchemyEndpoint(url),
-            body: body
+            body: body,
+            expectedResponseID: 1
         ) { result in
             validate(result)
             completion.fulfill()
@@ -1779,7 +2265,12 @@ final class NetworkCatalogTests: XCTestCase {
                         explorerURL: String? = nil,
                         alchemyNetwork: String? = nil,
                         fallbackRPCURL: String? = nil,
-                        accountDisabledAlchemyNetwork: String? = nil) -> NetworkCatalogRecord {
+                        accountDisabledAlchemyNetwork: String? = nil,
+                        feeMarketSupport: EthereumFeeMarketSupport = .unknown,
+                        feeMarketCheckedAt: String = "2026-07-23T00:00:00Z",
+                        feeMarketObservedEndpoint: String? = nil) -> NetworkCatalogRecord {
+        let derivedEndpoint = alchemyNetwork.flatMap(AlchemyRPC.url(network:))?
+            .absoluteString ?? fallbackRPCURL ?? "https://invalid.example"
         return NetworkCatalogRecord(
             chainId: chainId,
             name: name,
@@ -1789,7 +2280,12 @@ final class NetworkCatalogTests: XCTestCase {
             displayPrice: false,
             alchemyNetwork: alchemyNetwork,
             fallbackRPCURL: fallbackRPCURL,
-            accountDisabledAlchemyNetwork: accountDisabledAlchemyNetwork
+            accountDisabledAlchemyNetwork: accountDisabledAlchemyNetwork,
+            feeMarketHint: EthereumFeeMarketHint(
+                support: feeMarketSupport,
+                checkedAt: feeMarketCheckedAt,
+                observedEndpoint: feeMarketObservedEndpoint ?? derivedEndpoint
+            )
         )
     }
 
@@ -2013,6 +2509,122 @@ private final class SafariAuthorizationURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+
+}
+
+private final class SafariRedirectURLProtocol: URLProtocol {
+
+    private static let stateLock = NSLock()
+    private static var configuredRedirectURL: URL?
+    private static var configuredSourceURL: URL?
+    private static var configuredStatusCode = 307
+    private static var recordedURLs = [URL]()
+
+    static var requestCount: Int {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return recordedURLs.count
+    }
+
+    static var requestedURLs: [URL] {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return recordedURLs
+    }
+
+    static func configure(
+        sourceURL: URL,
+        redirectURL: URL,
+        statusCode: Int
+    ) {
+        stateLock.lock()
+        configuredSourceURL = sourceURL
+        configuredRedirectURL = redirectURL
+        configuredStatusCode = statusCode
+        recordedURLs = []
+        stateLock.unlock()
+    }
+
+    static func reset() {
+        stateLock.lock()
+        configuredSourceURL = nil
+        configuredRedirectURL = nil
+        recordedURLs = []
+        stateLock.unlock()
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        return true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        return request
+    }
+
+    override func startLoading() {
+        guard let url = request.url else {
+            client?.urlProtocol(
+                self,
+                didFailWithError: URLError(.badServerResponse)
+            )
+            return
+        }
+
+        Self.stateLock.lock()
+        Self.recordedURLs.append(url)
+        let sourceURL = Self.configuredSourceURL
+        let redirectURL = Self.configuredRedirectURL
+        let statusCode = Self.configuredStatusCode
+        Self.stateLock.unlock()
+
+        guard url == sourceURL,
+              let redirectURL,
+              let response = HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Location": redirectURL.absoluteString]
+              ) else {
+            respondWithSuccess(for: url)
+            return
+        }
+
+        var redirectRequest = request
+        redirectRequest.url = redirectURL
+        client?.urlProtocol(
+            self,
+            wasRedirectedTo: redirectRequest,
+            redirectResponse: response
+        )
+    }
+
+    override func stopLoading() {}
+
+    private func respondWithSuccess(for url: URL) {
+        guard let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        ) else {
+            client?.urlProtocol(
+                self,
+                didFailWithError: URLError(.badServerResponse)
+            )
+            return
+        }
+
+        client?.urlProtocol(
+            self,
+            didReceive: response,
+            cacheStoragePolicy: .notAllowed
+        )
+        client?.urlProtocol(
+            self,
+            didLoad: Data(#"{"jsonrpc":"2.0","id":1,"result":"redirected"}"#.utf8)
+        )
+        client?.urlProtocolDidFinishLoading(self)
+    }
 
 }
 

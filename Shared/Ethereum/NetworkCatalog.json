@@ -10,7 +10,12 @@
     "explorerURL": "https://etherscan.io",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "eth-mainnet"
+    "alchemyNetwork": "eth-mainnet",
+    "feeMarketHint": {
+      "support": "eip1559",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://eth-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 10,
@@ -23,7 +28,12 @@
     "explorerURL": "https://optimistic.etherscan.io",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "opt-mainnet"
+    "alchemyNetwork": "opt-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://opt-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 25,
@@ -36,7 +46,12 @@
     "explorerURL": "https://explorer.cronos.org",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "cronos-mainnet"
+    "alchemyNetwork": "cronos-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://cronos-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 30,
@@ -49,7 +64,12 @@
     "explorerURL": "https://explorer.rsk.co",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "rootstock-mainnet"
+    "alchemyNetwork": "rootstock-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rootstock-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 31,
@@ -62,7 +82,12 @@
     "explorerURL": "https://explorer.testnet.rsk.co",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "rootstock-testnet"
+    "alchemyNetwork": "rootstock-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rootstock-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 40,
@@ -75,7 +100,12 @@
     "explorerURL": "https://teloscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://mainnet.telos.net/evm"
+    "fallbackRPCURL": "https://mainnet.telos.net/evm",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://mainnet.telos.net/evm"
+    }
   },
   {
     "chainId": 56,
@@ -88,7 +118,12 @@
     "explorerURL": "https://bscscan.com",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "bnb-mainnet"
+    "alchemyNetwork": "bnb-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://bnb-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 66,
@@ -101,7 +136,12 @@
     "explorerURL": "https://www.oklink.com/en/okc",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://exchainrpc.okex.org"
+    "fallbackRPCURL": "https://exchainrpc.okex.org",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://exchainrpc.okex.org"
+    }
   },
   {
     "chainId": 69,
@@ -114,7 +154,12 @@
     "explorerURL": "https://kovan-optimistic.etherscan.io",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://kovan.optimism.io/"
+    "fallbackRPCURL": "https://kovan.optimism.io/",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://kovan.optimism.io/"
+    }
   },
   {
     "chainId": 77,
@@ -127,7 +172,12 @@
     "explorerURL": "https://blockscout.com/poa/sokol",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://sokol.poa.network"
+    "fallbackRPCURL": "https://sokol.poa.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://sokol.poa.network"
+    }
   },
   {
     "chainId": 97,
@@ -140,7 +190,12 @@
     "explorerURL": "https://testnet.bscscan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "bnb-testnet"
+    "alchemyNetwork": "bnb-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://bnb-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 99,
@@ -153,7 +208,12 @@
     "explorerURL": "https://blockscout.com/poa/core",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://core.poa.network"
+    "fallbackRPCURL": "https://core.poa.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://core.poa.network"
+    }
   },
   {
     "chainId": 100,
@@ -166,7 +226,12 @@
     "explorerURL": "https://gnosisscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "gnosis-mainnet"
+    "alchemyNetwork": "gnosis-mainnet",
+    "feeMarketHint": {
+      "support": "eip1559",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://gnosis-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 122,
@@ -179,7 +244,12 @@
     "explorerURL": "https://explorer.fuse.io",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.fuse.io"
+    "fallbackRPCURL": "https://rpc.fuse.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.fuse.io"
+    }
   },
   {
     "chainId": 128,
@@ -192,7 +262,12 @@
     "explorerURL": "https://hecoinfo.com",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://http-mainnet.hecochain.com"
+    "fallbackRPCURL": "https://http-mainnet.hecochain.com",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://http-mainnet.hecochain.com"
+    }
   },
   {
     "chainId": 130,
@@ -205,7 +280,12 @@
     "explorerURL": "https://uniscan.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "unichain-mainnet"
+    "alchemyNetwork": "unichain-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://unichain-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 137,
@@ -218,7 +298,12 @@
     "explorerURL": "https://polygonscan.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "polygon-mainnet"
+    "alchemyNetwork": "polygon-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://polygon-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 143,
@@ -231,7 +316,12 @@
     "explorerURL": "https://monadvision.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "monad-mainnet"
+    "alchemyNetwork": "monad-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://monad-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 146,
@@ -244,7 +334,12 @@
     "explorerURL": "https://explorer.soniclabs.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "sonic-mainnet"
+    "alchemyNetwork": "sonic-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://sonic-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 169,
@@ -257,7 +352,12 @@
     "explorerURL": "https://pacific-explorer.manta.network",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://pacific-rpc.manta.network/http"
+    "fallbackRPCURL": "https://pacific-rpc.manta.network/http",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://pacific-rpc.manta.network/http"
+    }
   },
   {
     "chainId": 185,
@@ -270,7 +370,12 @@
     "explorerURL": "https://explorer.mintchain.io",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.mintchain.io"
+    "fallbackRPCURL": "https://rpc.mintchain.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.mintchain.io"
+    }
   },
   {
     "chainId": 196,
@@ -283,7 +388,12 @@
     "explorerURL": "https://www.oklink.com/xlayer",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "xlayer-mainnet"
+    "alchemyNetwork": "xlayer-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://xlayer-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 200,
@@ -296,7 +406,12 @@
     "explorerURL": "https://blockscout.com/xdai/arbitrum",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://arbitrum.xdaichain.com/"
+    "fallbackRPCURL": "https://arbitrum.xdaichain.com/",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://arbitrum.xdaichain.com/"
+    }
   },
   {
     "chainId": 204,
@@ -309,7 +424,12 @@
     "explorerURL": "https://mainnet.opbnbscan.com",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "opbnb-mainnet"
+    "alchemyNetwork": "opbnb-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://opbnb-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 232,
@@ -322,7 +442,12 @@
     "explorerURL": "https://explorer.lens.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "lens-mainnet"
+    "alchemyNetwork": "lens-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://lens-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 250,
@@ -335,7 +460,12 @@
     "explorerURL": "https://ftmscan.com",
     "isTestnet": false,
     "displayPrice": true,
-    "fallbackRPCURL": "https://rpc.ftm.tools"
+    "fallbackRPCURL": "https://rpc.ftm.tools",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.ftm.tools"
+    }
   },
   {
     "chainId": 252,
@@ -348,7 +478,12 @@
     "explorerURL": "https://fraxscan.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "frax-mainnet"
+    "alchemyNetwork": "frax-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://frax-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 255,
@@ -361,7 +496,12 @@
     "explorerURL": "https://blockscout.kroma.network",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://api.kroma.network"
+    "fallbackRPCURL": "https://api.kroma.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://api.kroma.network"
+    }
   },
   {
     "chainId": 280,
@@ -374,7 +514,12 @@
     "explorerURL": "https://goerli.explorer.zksync.io",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://testnet.era.zksync.dev"
+    "fallbackRPCURL": "https://testnet.era.zksync.dev",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://testnet.era.zksync.dev"
+    }
   },
   {
     "chainId": 288,
@@ -387,7 +532,12 @@
     "explorerURL": "https://bobascan.com",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "boba-mainnet"
+    "alchemyNetwork": "boba-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://boba-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 300,
@@ -400,7 +550,12 @@
     "explorerURL": "https://sepolia.explorer.zksync.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "zksync-sepolia"
+    "alchemyNetwork": "zksync-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://zksync-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 314,
@@ -413,7 +568,12 @@
     "explorerURL": "https://filfox.info/en",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://api.node.glif.io/"
+    "fallbackRPCURL": "https://api.node.glif.io/",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://api.node.glif.io/"
+    }
   },
   {
     "chainId": 324,
@@ -426,7 +586,12 @@
     "explorerURL": "https://explorer.zksync.io",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "zksync-mainnet"
+    "alchemyNetwork": "zksync-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://zksync-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 338,
@@ -439,7 +604,12 @@
     "explorerURL": "https://explorer.cronos.org/testnet",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "cronos-testnet"
+    "alchemyNetwork": "cronos-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://cronos-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 360,
@@ -452,7 +622,12 @@
     "explorerURL": "https://shapescan.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "shape-mainnet"
+    "alchemyNetwork": "shape-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://shape-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 420,
@@ -465,7 +640,12 @@
     "explorerURL": "https://optimism-goerli.blockscout.com",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://goerli.optimism.io"
+    "fallbackRPCURL": "https://goerli.optimism.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://goerli.optimism.io"
+    }
   },
   {
     "chainId": 424,
@@ -478,7 +658,12 @@
     "explorerURL": "https://explorer.publicgoods.network",
     "isTestnet": false,
     "displayPrice": true,
-    "fallbackRPCURL": "https://rpc.publicgoods.network"
+    "fallbackRPCURL": "https://rpc.publicgoods.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.publicgoods.network"
+    }
   },
   {
     "chainId": 480,
@@ -491,7 +676,12 @@
     "explorerURL": "https://worldscan.org",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "worldchain-mainnet"
+    "alchemyNetwork": "worldchain-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://worldchain-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 545,
@@ -504,7 +694,12 @@
     "explorerURL": "https://evm-testnet.flowscan.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "flow-testnet"
+    "alchemyNetwork": "flow-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://flow-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 592,
@@ -517,7 +712,12 @@
     "explorerURL": "https://astar.subscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "astar-mainnet"
+    "alchemyNetwork": "astar-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://astar-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 690,
@@ -530,7 +730,12 @@
     "explorerURL": "https://explorer.redstone.xyz",
     "isTestnet": false,
     "displayPrice": true,
-    "fallbackRPCURL": "https://rpc.redstonechain.com"
+    "fallbackRPCURL": "https://rpc.redstonechain.com",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.redstonechain.com"
+    }
   },
   {
     "chainId": 747,
@@ -543,7 +748,12 @@
     "explorerURL": "https://evm.flowscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "flow-mainnet"
+    "alchemyNetwork": "flow-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://flow-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 869,
@@ -556,7 +766,12 @@
     "explorerURL": "https://explorer.worldmobile.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "worldmobilechain-mainnet"
+    "alchemyNetwork": "worldmobilechain-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://worldmobilechain-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 919,
@@ -569,7 +784,12 @@
     "explorerURL": "https://sepolia.explorer.mode.network",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "mode-sepolia"
+    "alchemyNetwork": "mode-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://mode-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 988,
@@ -582,7 +802,12 @@
     "explorerURL": "https://stablescan.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "stable-mainnet"
+    "alchemyNetwork": "stable-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://stable-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 998,
@@ -594,7 +819,12 @@
     },
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "hyperliquid-testnet"
+    "alchemyNetwork": "hyperliquid-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://hyperliquid-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 999,
@@ -607,7 +837,12 @@
     "explorerURL": "https://hyperevmscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "hyperliquid-mainnet"
+    "alchemyNetwork": "hyperliquid-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://hyperliquid-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1001,
@@ -620,7 +855,12 @@
     "explorerURL": "https://kairos.kaiascan.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "kaia-testnet"
+    "alchemyNetwork": "kaia-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://kaia-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1088,
@@ -633,7 +873,12 @@
     "explorerURL": "https://andromeda-explorer.metis.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "metis-mainnet"
+    "alchemyNetwork": "metis-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://metis-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1101,
@@ -646,7 +891,12 @@
     "explorerURL": "https://zkevm.polygonscan.com",
     "isTestnet": false,
     "displayPrice": true,
-    "fallbackRPCURL": "https://zkevm-rpc.com"
+    "fallbackRPCURL": "https://zkevm-rpc.com",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://zkevm-rpc.com"
+    }
   },
   {
     "chainId": 1284,
@@ -659,7 +909,12 @@
     "explorerURL": "https://moonbeam.moonscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "moonbeam-mainnet"
+    "alchemyNetwork": "moonbeam-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://moonbeam-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1285,
@@ -672,7 +927,12 @@
     "explorerURL": "https://moonriver.moonscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.api.moonriver.moonbeam.network"
+    "fallbackRPCURL": "https://rpc.api.moonriver.moonbeam.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.api.moonriver.moonbeam.network"
+    }
   },
   {
     "chainId": 1301,
@@ -685,7 +945,12 @@
     "explorerURL": "https://unichain-sepolia.blockscout.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "unichain-sepolia"
+    "alchemyNetwork": "unichain-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://unichain-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1315,
@@ -698,7 +963,12 @@
     "explorerURL": "https://aeneid.storyscan.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "story-aeneid"
+    "alchemyNetwork": "story-aeneid",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://story-aeneid.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1328,
@@ -711,7 +981,12 @@
     "explorerURL": "https://testnet.seiscan.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "sei-testnet"
+    "alchemyNetwork": "sei-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://sei-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1329,
@@ -724,7 +999,12 @@
     "explorerURL": "https://seitrace.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "sei-mainnet"
+    "alchemyNetwork": "sei-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://sei-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1439,
@@ -737,7 +1017,12 @@
     "explorerURL": "https://testnet.blockscout.injective.network",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "injective-testnet"
+    "alchemyNetwork": "injective-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://injective-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1442,
@@ -750,7 +1035,12 @@
     "explorerURL": "https://explorer.public.zkevm-test.net",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.public.zkevm-test.net"
+    "fallbackRPCURL": "https://rpc.public.zkevm-test.net",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.public.zkevm-test.net"
+    }
   },
   {
     "chainId": 1514,
@@ -763,7 +1053,12 @@
     "explorerURL": "https://mainnet.storyscan.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "story-mainnet"
+    "alchemyNetwork": "story-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://story-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1672,
@@ -776,7 +1071,12 @@
     "explorerURL": "https://pharosscan.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "pharos-mainnet"
+    "alchemyNetwork": "pharos-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://pharos-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1776,
@@ -789,7 +1089,12 @@
     "explorerURL": "https://blockscout.injective.network",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "injective-mainnet"
+    "alchemyNetwork": "injective-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://injective-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1868,
@@ -802,7 +1107,12 @@
     "explorerURL": "https://soneium.blockscout.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "soneium-mainnet"
+    "alchemyNetwork": "soneium-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://soneium-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1946,
@@ -815,7 +1125,12 @@
     "explorerURL": "https://soneium-minato.blockscout.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "soneium-minato"
+    "alchemyNetwork": "soneium-minato",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://soneium-minato.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1952,
@@ -828,7 +1143,12 @@
     "explorerURL": "https://web3.okx.com/explorer/x-layer-testnet",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "xlayer-testnet"
+    "alchemyNetwork": "xlayer-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://xlayer-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 2020,
@@ -841,7 +1161,12 @@
     "explorerURL": "https://app.roninchain.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "ronin-mainnet"
+    "alchemyNetwork": "ronin-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://ronin-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 2201,
@@ -854,7 +1179,12 @@
     "explorerURL": "https://testnet.stablescan.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "stable-testnet"
+    "alchemyNetwork": "stable-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://stable-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 2221,
@@ -867,7 +1197,12 @@
     "explorerURL": "http://testnet.kavascan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://evm.testnet.kava.io"
+    "fallbackRPCURL": "https://evm.testnet.kava.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://evm.testnet.kava.io"
+    }
   },
   {
     "chainId": 2222,
@@ -880,7 +1215,12 @@
     "explorerURL": "https://kavascan.com",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://evm.kava.io"
+    "fallbackRPCURL": "https://evm.kava.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://evm.kava.io"
+    }
   },
   {
     "chainId": 2741,
@@ -893,7 +1233,12 @@
     "explorerURL": "https://abscan.org",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "abstract-mainnet"
+    "alchemyNetwork": "abstract-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://abstract-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 2818,
@@ -906,7 +1251,12 @@
     "explorerURL": "https://explorer.morphl2.io",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.morphl2.io"
+    "fallbackRPCURL": "https://rpc.morphl2.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.morphl2.io"
+    }
   },
   {
     "chainId": 3343,
@@ -919,7 +1269,12 @@
     "explorerURL": "https://edge-mainnet.explorer.alchemy.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "edge-mainnet"
+    "alchemyNetwork": "edge-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://edge-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 4002,
@@ -932,7 +1287,12 @@
     "explorerURL": "https://testnet.ftmscan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.testnet.fantom.network"
+    "fallbackRPCURL": "https://rpc.testnet.fantom.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.testnet.fantom.network"
+    }
   },
   {
     "chainId": 4114,
@@ -945,7 +1305,12 @@
     "explorerURL": "https://explorer.mainnet.citrea.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "citrea-mainnet"
+    "alchemyNetwork": "citrea-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://citrea-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 4153,
@@ -958,7 +1323,12 @@
     "explorerURL": "https://explorer.risechain.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "rise-mainnet"
+    "alchemyNetwork": "rise-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rise-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 4157,
@@ -971,7 +1341,12 @@
     "explorerURL": "https://test.xfiscan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "crossfi-testnet"
+    "alchemyNetwork": "crossfi-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://crossfi-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 4158,
@@ -984,7 +1359,12 @@
     "explorerURL": "https://xfiscan.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "crossfi-mainnet"
+    "alchemyNetwork": "crossfi-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://crossfi-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 4217,
@@ -997,7 +1377,12 @@
     "explorerURL": "https://explore.tempo.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "tempo-mainnet"
+    "alchemyNetwork": "tempo-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://tempo-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 4326,
@@ -1010,7 +1395,12 @@
     "explorerURL": "https://mega.etherscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "megaeth-mainnet"
+    "alchemyNetwork": "megaeth-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://megaeth-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 4337,
@@ -1023,7 +1413,12 @@
     "explorerURL": "https://subnets.avax.network/beam",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://subnets.avax.network/beam/mainnet/rpc"
+    "fallbackRPCURL": "https://subnets.avax.network/beam/mainnet/rpc",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://subnets.avax.network/beam/mainnet/rpc"
+    }
   },
   {
     "chainId": 4663,
@@ -1036,7 +1431,12 @@
     "explorerURL": "https://robinhoodchain.blockscout.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "robinhood-mainnet"
+    "alchemyNetwork": "robinhood-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://robinhood-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 4801,
@@ -1049,7 +1449,12 @@
     "explorerURL": "https://sepolia.worldscan.org",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "worldchain-sepolia"
+    "alchemyNetwork": "worldchain-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://worldchain-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 5000,
@@ -1062,7 +1467,12 @@
     "explorerURL": "https://explorer.mantle.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "mantle-mainnet"
+    "alchemyNetwork": "mantle-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://mantle-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 5001,
@@ -1075,7 +1485,12 @@
     "explorerURL": "https://explorer.testnet.mantle.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.testnet.mantle.xyz"
+    "fallbackRPCURL": "https://rpc.testnet.mantle.xyz",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.testnet.mantle.xyz"
+    }
   },
   {
     "chainId": 5003,
@@ -1088,7 +1503,12 @@
     "explorerURL": "https://explorer.sepolia.mantle.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "mantle-sepolia"
+    "alchemyNetwork": "mantle-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://mantle-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 5115,
@@ -1101,7 +1521,12 @@
     "explorerURL": "https://explorer.testnet.citrea.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "citrea-testnet"
+    "alchemyNetwork": "citrea-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://citrea-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 5330,
@@ -1114,7 +1539,12 @@
     "explorerURL": "https://explorer.superseed.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "superseed-mainnet"
+    "alchemyNetwork": "superseed-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://superseed-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 5371,
@@ -1127,7 +1557,12 @@
     "explorerURL": "https://mainnet.settlus.network",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "settlus-mainnet"
+    "alchemyNetwork": "settlus-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://settlus-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 5373,
@@ -1140,7 +1575,12 @@
     "explorerURL": "https://sepolia.settlus.network",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "settlus-septestnet"
+    "alchemyNetwork": "settlus-septestnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://settlus-septestnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 5545,
@@ -1152,7 +1592,12 @@
     },
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.duckchain.io"
+    "fallbackRPCURL": "https://rpc.duckchain.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.duckchain.io"
+    }
   },
   {
     "chainId": 5611,
@@ -1165,7 +1610,12 @@
     "explorerURL": "https://opbnb-testnet.bscscan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "opbnb-testnet"
+    "alchemyNetwork": "opbnb-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://opbnb-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 6342,
@@ -1177,7 +1627,12 @@
     },
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://carrot.megaeth.com/rpc"
+    "fallbackRPCURL": "https://carrot.megaeth.com/rpc",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://carrot.megaeth.com/rpc"
+    }
   },
   {
     "chainId": 6343,
@@ -1190,7 +1645,12 @@
     "explorerURL": "https://testnet-mega.etherscan.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "megaeth-testnet"
+    "alchemyNetwork": "megaeth-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://megaeth-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 6900,
@@ -1202,7 +1662,12 @@
     },
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "anime-sepolia"
+    "alchemyNetwork": "anime-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://anime-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 7000,
@@ -1215,7 +1680,12 @@
     "explorerURL": "https://explorer.zetachain.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "zetachain-mainnet"
+    "alchemyNetwork": "zetachain-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://zetachain-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 7001,
@@ -1228,7 +1698,12 @@
     "explorerURL": "https://testnet.zetascan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "zetachain-testnet"
+    "alchemyNetwork": "zetachain-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://zetachain-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 7700,
@@ -1241,7 +1716,12 @@
     "explorerURL": "https://evm.explorer.canto.io",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://canto.slingshot.finance"
+    "fallbackRPCURL": "https://canto.slingshot.finance",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://canto.slingshot.finance"
+    }
   },
   {
     "chainId": 8217,
@@ -1254,7 +1734,12 @@
     "explorerURL": "https://kaiascan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "kaia-mainnet"
+    "alchemyNetwork": "kaia-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://kaia-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 8333,
@@ -1267,7 +1752,12 @@
     "explorerURL": "https://explorer.b3.fun",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://mainnet-rpc.b3.fun"
+    "fallbackRPCURL": "https://mainnet-rpc.b3.fun",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://mainnet-rpc.b3.fun"
+    }
   },
   {
     "chainId": 8453,
@@ -1280,7 +1770,12 @@
     "explorerURL": "https://basescan.org",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "base-mainnet"
+    "alchemyNetwork": "base-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://base-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 9001,
@@ -1293,7 +1788,12 @@
     "explorerURL": "https://escan.live",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://evmos.lava.build"
+    "fallbackRPCURL": "https://evmos.lava.build",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://evmos.lava.build"
+    }
   },
   {
     "chainId": 9745,
@@ -1306,7 +1806,12 @@
     "explorerURL": "https://plasmascan.to",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "plasma-mainnet"
+    "alchemyNetwork": "plasma-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://plasma-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 9746,
@@ -1319,7 +1824,12 @@
     "explorerURL": "https://testnet.plasmascan.to",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "plasma-testnet"
+    "alchemyNetwork": "plasma-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://plasma-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 10143,
@@ -1332,7 +1842,12 @@
     "explorerURL": "https://testnet.monadexplorer.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "monad-testnet"
+    "alchemyNetwork": "monad-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://monad-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 10200,
@@ -1345,7 +1860,12 @@
     "explorerURL": "https://blockscout.chiadochain.net",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "gnosis-chiado"
+    "alchemyNetwork": "gnosis-chiado",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://gnosis-chiado.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 11011,
@@ -1358,7 +1878,12 @@
     "explorerURL": "https://explorer-sepolia.shape.network",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "shape-sepolia"
+    "alchemyNetwork": "shape-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://shape-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 11124,
@@ -1371,7 +1896,12 @@
     "explorerURL": "https://sepolia.abscan.org",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "abstract-testnet"
+    "alchemyNetwork": "abstract-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://abstract-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 11235,
@@ -1384,7 +1914,12 @@
     "explorerURL": "https://explorer.haqq.network",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.eth.haqq.network"
+    "fallbackRPCURL": "https://rpc.eth.haqq.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.eth.haqq.network"
+    }
   },
   {
     "chainId": 13371,
@@ -1397,7 +1932,12 @@
     "explorerURL": "https://explorer.immutable.com",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.immutable.com"
+    "fallbackRPCURL": "https://rpc.immutable.com",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.immutable.com"
+    }
   },
   {
     "chainId": 14601,
@@ -1410,7 +1950,12 @@
     "explorerURL": "https://explorer.testnet.soniclabs.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "sonic-testnet"
+    "alchemyNetwork": "sonic-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://sonic-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 28882,
@@ -1423,7 +1968,12 @@
     "explorerURL": "https://testnet.bobascan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "boba-sepolia"
+    "alchemyNetwork": "boba-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://boba-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 33111,
@@ -1436,7 +1986,12 @@
     "explorerURL": "https://explorer.curtis.apechain.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "apechain-curtis"
+    "alchemyNetwork": "apechain-curtis",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://apechain-curtis.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 33139,
@@ -1449,7 +2004,12 @@
     "explorerURL": "https://apescan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "apechain-mainnet"
+    "alchemyNetwork": "apechain-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://apechain-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 33431,
@@ -1462,7 +2022,12 @@
     "explorerURL": "https://edge-testnet.explorer.alchemy.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "edge-testnet"
+    "alchemyNetwork": "edge-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://edge-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 34443,
@@ -1475,7 +2040,12 @@
     "explorerURL": "https://explorer.mode.network",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "mode-mainnet"
+    "alchemyNetwork": "mode-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://mode-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 36900,
@@ -1488,7 +2058,12 @@
     "explorerURL": "https://explorer.adifoundation.ai",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "adi-mainnet"
+    "alchemyNetwork": "adi-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://adi-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 37111,
@@ -1501,7 +2076,12 @@
     "explorerURL": "https://block-explorer.testnet.lens.dev",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "lens-sepolia"
+    "alchemyNetwork": "lens-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://lens-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 42018,
@@ -1514,7 +2094,12 @@
     "explorerURL": "https://explorer.mythos.foundation",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "mythos-mainnet"
+    "alchemyNetwork": "mythos-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://mythos-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 42161,
@@ -1527,7 +2112,12 @@
     "explorerURL": "https://arbiscan.io",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "arb-mainnet"
+    "alchemyNetwork": "arb-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://arb-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 42170,
@@ -1540,7 +2130,12 @@
     "explorerURL": "https://nova-explorer.arbitrum.io",
     "isTestnet": false,
     "displayPrice": true,
-    "fallbackRPCURL": "https://nova.arbitrum.io/rpc"
+    "fallbackRPCURL": "https://nova.arbitrum.io/rpc",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://nova.arbitrum.io/rpc"
+    }
   },
   {
     "chainId": 42220,
@@ -1553,7 +2148,12 @@
     "explorerURL": "https://celoscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "celo-mainnet"
+    "alchemyNetwork": "celo-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://celo-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 42431,
@@ -1566,7 +2166,12 @@
     "explorerURL": "https://explore.testnet.tempo.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "tempo-moderato"
+    "alchemyNetwork": "tempo-moderato",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://tempo-moderato.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 42766,
@@ -1579,7 +2184,12 @@
     "explorerURL": "https://scan.zkfair.io",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.zkfair.io"
+    "fallbackRPCURL": "https://rpc.zkfair.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.zkfair.io"
+    }
   },
   {
     "chainId": 43113,
@@ -1592,7 +2202,12 @@
     "explorerURL": "https://testnet.snowtrace.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "avax-fuji"
+    "alchemyNetwork": "avax-fuji",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://avax-fuji.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 43114,
@@ -1605,7 +2220,12 @@
     "explorerURL": "https://snowtrace.io",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "avax-mainnet"
+    "alchemyNetwork": "avax-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://avax-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 43288,
@@ -1618,7 +2238,12 @@
     "explorerURL": "https://blockexplorer.avax.boba.network",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://avax.boba.network"
+    "fallbackRPCURL": "https://avax.boba.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://avax.boba.network"
+    }
   },
   {
     "chainId": 44787,
@@ -1631,7 +2256,12 @@
     "explorerURL": "https://alfajores.celoscan.io",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://alfajores-forno.celo-testnet.org"
+    "fallbackRPCURL": "https://alfajores-forno.celo-testnet.org",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://alfajores-forno.celo-testnet.org"
+    }
   },
   {
     "chainId": 46630,
@@ -1644,7 +2274,12 @@
     "explorerURL": "https://explorer.testnet.chain.robinhood.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "robinhood-testnet"
+    "alchemyNetwork": "robinhood-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://robinhood-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 53302,
@@ -1657,7 +2292,12 @@
     "explorerURL": "https://sepolia-explorer.superseed.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "superseed-sepolia"
+    "alchemyNetwork": "superseed-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://superseed-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 56288,
@@ -1670,7 +2310,12 @@
     "explorerURL": "https://blockexplorer.bnb.boba.network",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://bnb.boba.network"
+    "fallbackRPCURL": "https://bnb.boba.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://bnb.boba.network"
+    }
   },
   {
     "chainId": 57073,
@@ -1683,7 +2328,12 @@
     "explorerURL": "https://explorer.inkonchain.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "ink-mainnet"
+    "alchemyNetwork": "ink-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://ink-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 58008,
@@ -1696,7 +2346,12 @@
     "explorerURL": "https://explorer.sepolia.publicgoods.network",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://sepolia.publicgoods.network"
+    "fallbackRPCURL": "https://sepolia.publicgoods.network",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://sepolia.publicgoods.network"
+    }
   },
   {
     "chainId": 59140,
@@ -1709,7 +2364,12 @@
     "explorerURL": "https://goerli.lineascan.build",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.goerli.linea.build"
+    "fallbackRPCURL": "https://rpc.goerli.linea.build",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.goerli.linea.build"
+    }
   },
   {
     "chainId": 59141,
@@ -1722,7 +2382,12 @@
     "explorerURL": "https://sepolia.lineascan.build",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "linea-sepolia"
+    "alchemyNetwork": "linea-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://linea-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 59144,
@@ -1735,7 +2400,12 @@
     "explorerURL": "https://lineascan.build",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "linea-mainnet"
+    "alchemyNetwork": "linea-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://linea-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 60808,
@@ -1748,7 +2418,12 @@
     "explorerURL": "https://explorer.gobob.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "bob-mainnet"
+    "alchemyNetwork": "bob-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://bob-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 69000,
@@ -1761,7 +2436,12 @@
     "explorerURL": "https://explorer.anime.xyz",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "anime-mainnet"
+    "alchemyNetwork": "anime-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://anime-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 80001,
@@ -1774,7 +2454,12 @@
     "explorerURL": "https://mumbai.polygonscan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://polygon-testnet.public.blastapi.io"
+    "fallbackRPCURL": "https://polygon-testnet.public.blastapi.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://polygon-testnet.public.blastapi.io"
+    }
   },
   {
     "chainId": 80002,
@@ -1787,7 +2472,12 @@
     "explorerURL": "https://www.oklink.com/amoy",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "polygon-amoy"
+    "alchemyNetwork": "polygon-amoy",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://polygon-amoy.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 80069,
@@ -1800,7 +2490,12 @@
     "explorerURL": "https://bepolia.beratrail.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "berachain-bepolia"
+    "alchemyNetwork": "berachain-bepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://berachain-bepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 80094,
@@ -1813,7 +2508,12 @@
     "explorerURL": "https://berascan.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "berachain-mainnet"
+    "alchemyNetwork": "berachain-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://berachain-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 81457,
@@ -1826,7 +2526,12 @@
     "explorerURL": "https://blastscan.io",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "blast-mainnet"
+    "alchemyNetwork": "blast-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://blast-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 84531,
@@ -1839,7 +2544,12 @@
     "explorerURL": "https://goerli.basescan.org",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://goerli.base.org"
+    "fallbackRPCURL": "https://goerli.base.org",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://goerli.base.org"
+    }
   },
   {
     "chainId": 84532,
@@ -1852,7 +2562,12 @@
     "explorerURL": "https://base-sepolia.blockscout.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "base-sepolia"
+    "alchemyNetwork": "base-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://base-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 99999,
@@ -1865,7 +2580,12 @@
     "explorerURL": "https://explorer.ab.testnet.adifoundation.ai",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "adi-testnet"
+    "alchemyNetwork": "adi-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://adi-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 167000,
@@ -1879,7 +2599,12 @@
     "isTestnet": false,
     "displayPrice": false,
     "fallbackRPCURL": "https://rpc.mainnet.taiko.xyz",
-    "accountDisabledAlchemyNetwork": "taiko-mainnet"
+    "accountDisabledAlchemyNetwork": "taiko-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.mainnet.taiko.xyz"
+    }
   },
   {
     "chainId": 202601,
@@ -1892,7 +2617,12 @@
     "explorerURL": "https://saigon-explorer.roninchain.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "ronin-saigon"
+    "alchemyNetwork": "ronin-saigon",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://ronin-saigon.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 323432,
@@ -1905,7 +2635,12 @@
     "explorerURL": "https://testnet-explorer.worldmobile.net",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "worldmobile-testnet"
+    "alchemyNetwork": "worldmobile-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://worldmobile-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 421613,
@@ -1918,7 +2653,12 @@
     "explorerURL": "https://goerli.arbiscan.io",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://goerli-rollup.arbitrum.io/rpc"
+    "fallbackRPCURL": "https://goerli-rollup.arbitrum.io/rpc",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://goerli-rollup.arbitrum.io/rpc"
+    }
   },
   {
     "chainId": 421614,
@@ -1931,7 +2671,12 @@
     "explorerURL": "https://sepolia-explorer.arbitrum.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "arb-sepolia"
+    "alchemyNetwork": "arb-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://arb-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 534351,
@@ -1944,7 +2689,12 @@
     "explorerURL": "https://sepolia.scrollscan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "scroll-sepolia"
+    "alchemyNetwork": "scroll-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://scroll-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 534352,
@@ -1957,7 +2707,12 @@
     "explorerURL": "https://scrollscan.com",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "scroll-mainnet"
+    "alchemyNetwork": "scroll-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://scroll-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 560048,
@@ -1970,7 +2725,12 @@
     "explorerURL": "https://light-hoodi.beaconcha.in",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "eth-hoodi"
+    "alchemyNetwork": "eth-hoodi",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://eth-hoodi.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 613419,
@@ -1983,7 +2743,12 @@
     "explorerURL": "https://explorer.galactica.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "galactica-mainnet"
+    "alchemyNetwork": "galactica-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://galactica-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 685685,
@@ -1996,7 +2761,12 @@
     "explorerURL": "https://gensyn-testnet.explorer.alchemy.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "gensyn-testnet"
+    "alchemyNetwork": "gensyn-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://gensyn-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 685689,
@@ -2009,7 +2779,12 @@
     "explorerURL": "https://gensyn-mainnet.explorer.alchemy.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "gensyn-mainnet"
+    "alchemyNetwork": "gensyn-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://gensyn-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 688689,
@@ -2022,7 +2797,12 @@
     "explorerURL": "https://atlantic.pharosscan.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "pharos-atlantic"
+    "alchemyNetwork": "pharos-atlantic",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://pharos-atlantic.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 737373,
@@ -2035,7 +2815,12 @@
     "explorerURL": "https://bokuto.katanascan.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "katana-bokuto"
+    "alchemyNetwork": "katana-bokuto",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://katana-bokuto.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 747474,
@@ -2048,7 +2833,12 @@
     "explorerURL": "https://katanascan.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "katana-mainnet"
+    "alchemyNetwork": "katana-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://katana-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 763373,
@@ -2061,7 +2851,12 @@
     "explorerURL": "https://explorer-sepolia.inkonchain.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "ink-sepolia"
+    "alchemyNetwork": "ink-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://ink-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 808813,
@@ -2074,7 +2869,12 @@
     "explorerURL": "https://bob-sepolia.explorer.gobob.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "bob-sepolia"
+    "alchemyNetwork": "bob-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://bob-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 810180,
@@ -2087,7 +2887,12 @@
     "explorerURL": "https://explorer.zklink.io",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.zklink.io"
+    "fallbackRPCURL": "https://rpc.zklink.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.zklink.io"
+    }
   },
   {
     "chainId": 843843,
@@ -2100,7 +2905,12 @@
     "explorerURL": "https://galactica-cassiopeia.explorer.alchemy.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "galactica-cassiopeia"
+    "alchemyNetwork": "galactica-cassiopeia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://galactica-cassiopeia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 2019775,
@@ -2113,7 +2923,12 @@
     "explorerURL": "https://sepolia-explorer.jovay.io/l2",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "jovay-testnet"
+    "alchemyNetwork": "jovay-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://jovay-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 5042002,
@@ -2126,7 +2941,12 @@
     "explorerURL": "https://testnet.arcscan.app",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "arc-testnet"
+    "alchemyNetwork": "arc-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://arc-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 5734951,
@@ -2139,7 +2959,12 @@
     "explorerURL": "https://explorer.jovay.io/l2",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "jovay-mainnet"
+    "alchemyNetwork": "jovay-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://jovay-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 6985385,
@@ -2152,7 +2977,12 @@
     "explorerURL": "https://humanity-mainnet.explorer.alchemy.com",
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "humanity-mainnet"
+    "alchemyNetwork": "humanity-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://humanity-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 7080969,
@@ -2165,7 +2995,12 @@
     "explorerURL": "https://humanity-testnet.explorer.alchemy.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "humanity-testnet"
+    "alchemyNetwork": "humanity-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://humanity-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 7777777,
@@ -2178,7 +3013,12 @@
     "explorerURL": "https://explorer.zora.energy",
     "isTestnet": false,
     "displayPrice": true,
-    "alchemyNetwork": "zora-mainnet"
+    "alchemyNetwork": "zora-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://zora-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 11142220,
@@ -2191,7 +3031,12 @@
     "explorerURL": "https://celo-sepolia.blockscout.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "celo-sepolia"
+    "alchemyNetwork": "celo-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://celo-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 11155111,
@@ -2204,7 +3049,12 @@
     "explorerURL": "https://sepolia.etherscan.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "eth-sepolia"
+    "alchemyNetwork": "eth-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://eth-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 11155420,
@@ -2217,7 +3067,12 @@
     "explorerURL": "https://optimism-sepolia.blockscout.com",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "opt-sepolia"
+    "alchemyNetwork": "opt-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://opt-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 11155931,
@@ -2230,7 +3085,12 @@
     "explorerURL": "https://explorer.testnet.riselabs.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "rise-testnet"
+    "alchemyNetwork": "rise-testnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rise-testnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 68840142,
@@ -2243,7 +3103,12 @@
     "explorerURL": "https://explorer.testnet.frame.xyz",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://rpc.testnet.frame.xyz/http"
+    "fallbackRPCURL": "https://rpc.testnet.frame.xyz/http",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://rpc.testnet.frame.xyz/http"
+    }
   },
   {
     "chainId": 168587773,
@@ -2256,7 +3121,12 @@
     "explorerURL": "https://testnet.blastscan.io",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "blast-sepolia"
+    "alchemyNetwork": "blast-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://blast-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 245022926,
@@ -2269,7 +3139,12 @@
     "explorerURL": "https://devnet.neonscan.org",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://devnet.neonevm.org"
+    "fallbackRPCURL": "https://devnet.neonevm.org",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://devnet.neonevm.org"
+    }
   },
   {
     "chainId": 245022934,
@@ -2282,7 +3157,12 @@
     "explorerURL": "https://neonscan.org",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://neon-proxy-mainnet.solana.p2p.org/"
+    "fallbackRPCURL": "https://neon-proxy-mainnet.solana.p2p.org/",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://neon-proxy-mainnet.solana.p2p.org/"
+    }
   },
   {
     "chainId": 351243127,
@@ -2294,7 +3174,12 @@
     },
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "xmtp-ropsten"
+    "alchemyNetwork": "xmtp-ropsten",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://xmtp-ropsten.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 666666666,
@@ -2306,7 +3191,12 @@
     },
     "isTestnet": false,
     "displayPrice": false,
-    "alchemyNetwork": "degen-mainnet"
+    "alchemyNetwork": "degen-mainnet",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://degen-mainnet.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 999999999,
@@ -2319,7 +3209,12 @@
     "explorerURL": "https://sepolia.explorer.zora.energy",
     "isTestnet": true,
     "displayPrice": false,
-    "alchemyNetwork": "zora-sepolia"
+    "alchemyNetwork": "zora-sepolia",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://zora-sepolia.g.alchemy.com/v2"
+    }
   },
   {
     "chainId": 1313161554,
@@ -2332,7 +3227,12 @@
     "explorerURL": "https://aurorascan.dev",
     "isTestnet": false,
     "displayPrice": true,
-    "fallbackRPCURL": "https://mainnet.aurora.dev"
+    "fallbackRPCURL": "https://mainnet.aurora.dev",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://mainnet.aurora.dev"
+    }
   },
   {
     "chainId": 1313161555,
@@ -2345,7 +3245,12 @@
     "explorerURL": "https://testnet.aurorascan.dev",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://testnet.aurora.dev/"
+    "fallbackRPCURL": "https://testnet.aurora.dev/",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://testnet.aurora.dev/"
+    }
   },
   {
     "chainId": 1666600000,
@@ -2358,7 +3263,12 @@
     "explorerURL": "https://explorer.harmony.one",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://api.harmony.one"
+    "fallbackRPCURL": "https://api.harmony.one",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://api.harmony.one"
+    }
   },
   {
     "chainId": 11297108099,
@@ -2371,7 +3281,12 @@
     "explorerURL": "https://testnet.palm.chainlens.com",
     "isTestnet": true,
     "displayPrice": false,
-    "fallbackRPCURL": "https://palm-testnet.public.blastapi.io"
+    "fallbackRPCURL": "https://palm-testnet.public.blastapi.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://palm-testnet.public.blastapi.io"
+    }
   },
   {
     "chainId": 11297108109,
@@ -2384,6 +3299,11 @@
     "explorerURL": "https://palm.chainlens.com",
     "isTestnet": false,
     "displayPrice": false,
-    "fallbackRPCURL": "https://palm-mainnet.public.blastapi.io"
+    "fallbackRPCURL": "https://palm-mainnet.public.blastapi.io",
+    "feeMarketHint": {
+      "support": "unknown",
+      "checkedAt": "2026-07-23T00:00:00Z",
+      "observedEndpoint": "https://palm-mainnet.public.blastapi.io"
+    }
   }
 ]

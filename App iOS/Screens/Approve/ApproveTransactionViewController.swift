@@ -13,9 +13,13 @@ class ApproveTransactionViewController: UIViewController {
     
     private struct CellLayout {
         let cellModels: [CellModel]
-        let feeIndex: Int
-        let gasPriceIndex: Int
+        let feeRows: Range<Int>
         let sliderIndex: Int?
+    }
+
+    private struct PresentedApprovalAlert {
+        let token: TransactionApprovalAlertToken
+        let controller: UIAlertController
     }
     
     @IBOutlet weak var tableView: UITableView! {
@@ -31,7 +35,6 @@ class ApproveTransactionViewController: UIViewController {
         }
     }
     
-    private let gasService = GasService.shared
     private let ethereum = Ethereum.shared
     private let priceService = PriceService.shared
     private var gasSpeedConfiguration = GasSpeedConfiguration()
@@ -40,28 +43,26 @@ class ApproveTransactionViewController: UIViewController {
     
     private var walletId: String!
     private var account: WalletAccount!
-    private var transaction: Transaction!
     private var chain: EthereumNetwork!
     private var completion: ((Transaction?) -> Void)!
-    private var didCallCompletion = false
+    private var approvalCoordinator: TransactionApprovalCoordinator!
+    private var approvalSnapshot: TransactionApprovalSnapshot!
     private var peerMeta: PeerMeta?
     private var balance: String?
-    private var suggestedNonceAndGasPrice: (nonce: String?, gasPrice: String?)?
     private var isGasSliderTracking = false
+    private var gasSliderInteractionStartValue: Float?
+    private var gasSliderInteractionDidMove = false
     private var needsTableReloadAfterGasSliderInteraction = false
-    private var gasSliderPreparationRestart =
-        TransactionPreparationRestartGate()
-    private var preparationState = TransactionPreparationState()
-    private var preparationCancellation: EthereumRequestCancellation?
-    private var preparationFailureAlert: UIAlertController?
-    private var pendingPreparationFailure: (
-        attemptID: Int,
-        forceGasCheck: Bool
-    )?
+    private var presentedApprovalAlert: PresentedApprovalAlert?
+    private var pendingApprovalAlert: TransactionApprovalAlertIntent?
     private var isPresentingTransactionEditor = false
     private var isDismissingTransactionEditor = false
     private weak var transactionEditorController: UIViewController?
     private var isViewVisible = false
+
+    private var transaction: Transaction {
+        approvalSnapshot.transaction
+    }
     
     @IBOutlet weak var okButton: UIButton!
     @IBOutlet weak var cancelButton: UIButton!
@@ -69,16 +70,20 @@ class ApproveTransactionViewController: UIViewController {
     static func with(transaction: Transaction, chain: EthereumNetwork, account: WalletAccount, walletId: String, peerMeta: PeerMeta?, completion: @escaping (Transaction?) -> Void) -> ApproveTransactionViewController {
         let new = instantiate(ApproveTransactionViewController.self, from: .main)
         new.walletId = walletId
-        new.transaction = transaction
         new.chain = chain
         new.completion = completion
         new.account = account
         new.peerMeta = peerMeta
+        new.approvalCoordinator = TransactionApprovalCoordinator(
+            transaction: transaction,
+            network: chain,
+            authenticationPolicy: .required
+        )
+        new.approvalSnapshot = new.approvalCoordinator.snapshot
+        new.approvalCoordinator.onOutput = { [weak new] output in
+            new?.handleApprovalOutput(output)
+        }
         return new
-    }
-
-    deinit {
-        preparationCancellation?.cancel()
     }
     
     override func viewDidLoad() {
@@ -89,21 +94,20 @@ class ApproveTransactionViewController: UIViewController {
         
         priceService.update()
         configureAdaptiveLargeTitle(Strings.sendTransaction, tableView: tableView)
-        navigationItem.rightBarButtonItem = UIBarButtonItem(image: Images.preferences, style: .plain, target: self, action: #selector(editTransactionButtonTapped))
-        navigationItem.rightBarButtonItem?.tintColor = .tertiaryLabel
+        let editTransactionItem = UIBarButtonItem(
+            image: Images.preferences,
+            style: .plain,
+            target: self,
+            action: #selector(editTransactionButtonTapped)
+        )
+        editTransactionItem.accessibilityLabel = Strings.editFees
+        editTransactionItem.tintColor = .tertiaryLabel
+        navigationItem.rightBarButtonItem = editTransactionItem
         isModalInPresentation = true
         sectionModels = [[]]
 
-        if chain.isEthMainnet {
-            gasService.fetchEstimate(
-                endpoint: chain.rpcEndpoint
-            ) { [weak self] estimate in
-                self?.didFetchGasEstimate(estimate)
-            }
-        }
-        
         updateDisplayedTransactionInfo(initially: true)
-        prepareTransaction(forceGasCheck: false)
+        approvalCoordinator.startPreparation(forceGasCheck: false)
         updateSpeedConfigurationState()
         
         ethereum.getBalance(network: chain, address: account.address) { [weak self] balance in
@@ -124,7 +128,7 @@ class ApproveTransactionViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         isViewVisible = true
-        presentPendingPreparationFailureIfNeeded()
+        presentPendingApprovalAlertIfNeeded()
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -133,39 +137,43 @@ class ApproveTransactionViewController: UIViewController {
     }
     
     @objc private func editTransactionButtonTapped() {
-        guard !didCallCompletion else { return }
-        if suggestedNonceAndGasPrice == nil {
-            suggestedNonceAndGasPrice = (transaction.decimalNonceString, transaction.editableGasPriceGwei)
+        guard let snapshot = approvalSnapshot else { return }
+        guard snapshot.canEdit,
+              transactionEditorController == nil,
+              !isPresentingTransactionEditor,
+              !isDismissingTransactionEditor else {
+            return
         }
+        let transaction = snapshot.transaction
         let editTransactionView = EditTransactionView(
             initialTransaction: transaction,
             chain: chain,
-            suggestedNonce: suggestedNonceAndGasPrice?.nonce,
-            suggestedGasPrice: suggestedNonceAndGasPrice?.gasPrice,
+            suggestedNonce:
+                snapshot.suggestedNonce ?? transaction.decimalNonceString,
+            suggestedFee: snapshot.latestWalletSuggestedFee,
             completion: { [weak self] edits in
-                guard let self, !self.didCallCompletion else { return }
+                guard let self else { return }
                 guard let edits else {
                     self.dismissTransactionEditor()
                     return
                 }
-                let gasPriceChanged = edits.gasPrice.map {
-                    $0 != self.transaction.gasPriceValue
-                } ?? false
-                guard self.transaction.apply(edits) else {
+                let previousTransaction = self.transaction
+                guard self.approvalCoordinator.apply(edits: edits) else {
                     self.dismissTransactionEditor()
                     return
                 }
-                if gasPriceChanged {
-                    self.gasSpeedConfiguration.commitManualGasPrice(
-                        self.transaction.gasPriceWei
-                    )
-                }
-                self.invalidatePreparationForEditing()
+                self.gasSpeedConfiguration.commitAppliedEdits(
+                    edits,
+                    from: previousTransaction,
+                    to: self.transaction
+                )
                 let finishEditing = { [weak self] in
-                    guard let self, !self.didCallCompletion else { return }
+                    guard let self else { return }
                     self.updateDisplayedTransactionInfo(initially: false)
                     self.updateSpeedConfigurationState()
-                    self.prepareTransaction(forceGasCheck: true)
+                    self.approvalCoordinator.startPreparation(
+                        forceGasCheck: true
+                    )
                 }
                 self.dismissTransactionEditor(completion: finishEditing)
             }
@@ -173,9 +181,9 @@ class ApproveTransactionViewController: UIViewController {
         let hostingController = UIHostingController(rootView: editTransactionView)
         hostingController.modalPresentationStyle = .popover
 #if os(visionOS)
-        hostingController.preferredContentSize = CGSize(width: 230, height: 300)
+        hostingController.preferredContentSize = CGSize(width: 340, height: 500)
 #else
-        hostingController.preferredContentSize = CGSize(width: 230, height: 250)
+        hostingController.preferredContentSize = CGSize(width: 340, height: 440)
 #endif
         if let hostingController = hostingController.popoverPresentationController {
             hostingController.permittedArrowDirections = [.up]
@@ -187,7 +195,7 @@ class ApproveTransactionViewController: UIViewController {
         present(hostingController, animated: true) { [weak self] in
             guard let self else { return }
             self.isPresentingTransactionEditor = false
-            self.presentPendingPreparationFailureIfNeeded()
+            self.presentPendingApprovalAlertIfNeeded()
         }
     }
 
@@ -196,7 +204,7 @@ class ApproveTransactionViewController: UIViewController {
     ) {
         guard let transactionEditorController else {
             completion()
-            presentPendingPreparationFailureIfNeeded()
+            presentPendingApprovalAlertIfNeeded()
             return
         }
 
@@ -206,141 +214,176 @@ class ApproveTransactionViewController: UIViewController {
             self.transactionEditorController = nil
             self.isDismissingTransactionEditor = false
             completion()
-            self.presentPendingPreparationFailureIfNeeded()
+            self.presentPendingApprovalAlertIfNeeded()
         }
     }
     
-    private func prepareTransaction(forceGasCheck: Bool) {
-        guard !didCallCompletion else { return }
-        preparationCancellation?.cancel()
-        let attemptID = preparationState.beginPreparation(
-            for: transaction.id
-        )
-        pendingPreparationFailure = nil
-        okButton.isEnabled = false
-
-        preparationCancellation = ethereum.prepareTransaction(
-            transaction,
-            forceGasCheck: forceGasCheck,
-            network: chain,
-            onUpdate: { [weak self] updated in
-                guard let self,
-                      self.preparationState.isCurrent(
-                        attemptID: attemptID,
-                        transactionID: updated.id
-                      ),
-                      updated.id == self.transaction.id else {
-                    return
-                }
-                self.installPreparedUpdate(updated)
-            },
-            completion: { [weak self] result in
-                guard let self else { return }
-                switch result {
-                case .success(let prepared):
-                    guard prepared.id == self.transaction.id,
-                          self.preparationState.markReady(
-                        attemptID: attemptID,
-                        transactionID: prepared.id
-                    ) else {
-                        return
-                    }
-                    // RPC changes were installed by onUpdate. A zero-RPC
-                    // success is the transaction already on screen.
-                    self.okButton.isEnabled = self.canApproveTransaction
-                case .failure:
-                    guard self.preparationState.markFailed(
-                        attemptID: attemptID,
-                        transactionID: self.transaction.id
-                    ) else {
-                        return
-                    }
-                    self.okButton.isEnabled = false
-                    self.showPreparationFailure(
-                        attemptID: attemptID,
-                        forceGasCheck: forceGasCheck
-                    )
-                }
-            }
-        )
+    private func handleApprovalOutput(
+        _ output: TransactionApprovalOutput
+    ) {
+        switch output {
+        case .snapshot(let snapshot):
+            installApprovalSnapshot(snapshot)
+        case .verifiedFeeEstimate(let estimate):
+            installVerifiedFeeEstimate(estimate)
+        case .authenticationRequest(let token):
+            authenticate(token: token)
+        case .alert(let intent):
+            receiveApprovalAlert(intent)
+        case .editorRequest:
+            editTransactionButtonTapped()
+        case .completion(let result):
+            completeApproval(with: result)
+        }
     }
 
-    private func isCurrentPreparationAttempt(_ attemptID: Int) -> Bool {
-        !didCallCompletion &&
-            preparationState.isCurrent(
-                attemptID: attemptID,
-                transactionID: transaction.id
-            )
-    }
-
-    private func installPreparedUpdate(_ prepared: Transaction) {
-        transaction = gasSpeedConfiguration.mergingPreparedTransaction(
-            prepared,
-            with: transaction
+    private func installApprovalSnapshot(
+        _ snapshot: TransactionApprovalSnapshot
+    ) {
+        approvalSnapshot = snapshot
+        reconcileApprovalAlertState()
+        gasSpeedConfiguration.synchronizeSelectedSliderPosition(
+            with: snapshot.transaction
         )
         updateDisplayedTransactionInfo(initially: false)
         updateSpeedConfigurationState()
     }
 
-    private func invalidatePreparationForEditing() {
-        preparationCancellation?.cancel()
-        preparationCancellation = nil
-        preparationState.beginEditing(transaction.id)
-        pendingPreparationFailure = nil
-        okButton.isEnabled = false
+    private func installVerifiedFeeEstimate(
+        _ estimate: GasService.Estimate
+    ) {
+        gasSpeedConfiguration.applyFetchedEstimate(estimate)
     }
 
-    private func showPreparationFailure(
-        attemptID: Int,
-        forceGasCheck: Bool
+    private func authenticate(
+        token: TransactionApprovalRequestToken
     ) {
-        guard isCurrentPreparationAttempt(attemptID),
-              preparationState.phase == .failed else {
+        LocalAuthentication.attempt(
+            reason: Strings.sendTransaction,
+            presentPasswordAlertFrom: self,
+            passwordReason: Strings.sendTransaction
+        ) { [weak self] succeeded in
+            self?.approvalCoordinator.authenticationCompleted(
+                token: token,
+                succeeded: succeeded
+            )
+        }
+    }
+
+    private func completeApproval(with result: Transaction?) {
+        pendingApprovalAlert = nil
+        if let presentedApprovalAlert {
+            self.presentedApprovalAlert = nil
+            presentedApprovalAlert.controller.dismiss(animated: false)
+        }
+        isGasSliderTracking = false
+        gasSliderInteractionStartValue = nil
+        gasSliderInteractionDidMove = false
+        needsTableReloadAfterGasSliderInteraction = false
+        completion(result)
+    }
+
+    private func receiveApprovalAlert(
+        _ intent: TransactionApprovalAlertIntent
+    ) {
+        guard approvalCoordinator.isCurrentAlert(intent.token) else {
             return
         }
-        guard preparationFailureAlert == nil else { return }
-        if !isViewVisible ||
-            viewIfLoaded?.window == nil ||
-            isPresentingTransactionEditor ||
-            isDismissingTransactionEditor {
-            pendingPreparationFailure = (
-                attemptID: attemptID,
-                forceGasCheck: forceGasCheck
-            )
+        pendingApprovalAlert = intent
+        presentPendingApprovalAlertIfNeeded()
+    }
+
+    private func reconcileApprovalAlertState() {
+        if let pendingApprovalAlert,
+           !approvalCoordinator.isCurrentAlert(
+               pendingApprovalAlert.token
+           ) {
+            self.pendingApprovalAlert = nil
+        }
+
+        guard let presentedApprovalAlert,
+              !approvalCoordinator.isCurrentAlert(
+                presentedApprovalAlert.token
+              ) else {
+            return
+        }
+        let token = presentedApprovalAlert.token
+        let controller = presentedApprovalAlert.controller
+        controller.dismiss(
+            animated: true
+        ) { [weak self, weak controller] in
+            guard let self,
+                  let controller,
+                  let currentAlert = self.presentedApprovalAlert,
+                  currentAlert.controller === controller,
+                  currentAlert.token == token else {
+                return
+            }
+            self.presentedApprovalAlert = nil
+            self.presentPendingApprovalAlertIfNeeded()
+        }
+    }
+
+    private func presentPendingApprovalAlertIfNeeded() {
+        guard isViewVisible,
+              viewIfLoaded?.window != nil,
+              transactionEditorController == nil,
+              !isPresentingTransactionEditor,
+              !isDismissingTransactionEditor,
+              presentedApprovalAlert == nil,
+              let pendingApprovalAlert else {
+            return
+        }
+        guard approvalCoordinator.isCurrentAlert(
+            pendingApprovalAlert.token
+        ) else {
+            self.pendingApprovalAlert = nil
+            return
+        }
+        self.pendingApprovalAlert = nil
+        presentApprovalAlert(pendingApprovalAlert)
+    }
+
+    private func presentApprovalAlert(
+        _ intent: TransactionApprovalAlertIntent
+    ) {
+        guard approvalCoordinator.isCurrentAlert(intent.token),
+              presentedApprovalAlert == nil else {
             return
         }
 
+        let presentation = intent.presentation
         let alert = UIAlertController(
-            title: Strings.somethingWentWrong,
-            message: nil,
+            title: presentation.title,
+            message: presentation.message,
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: Strings.tryAgain, style: .default) {
-            [weak self, weak alert] _ in
-            guard let self,
-                  let alert,
-                  self.preparationFailureAlert === alert else { return }
-            alert.dismiss(animated: true) { [weak self, weak alert] in
-                guard let self else { return }
-                if self.preparationFailureAlert === alert {
-                    self.preparationFailureAlert = nil
-                }
-                guard self.isCurrentPreparationAttempt(attemptID) else { return }
-                self.prepareTransaction(forceGasCheck: forceGasCheck)
+        for action in presentation.actions {
+            let style: UIAlertAction.Style
+            if case .cancel = action.action {
+                style = .cancel
+            } else {
+                style = .default
             }
-        })
-        alert.addAction(UIAlertAction(title: Strings.cancel, style: .cancel) {
-            [weak self, weak alert] _ in
-            guard let self,
-                  let alert,
-                  self.preparationFailureAlert === alert else { return }
-            alert.dismiss(animated: true) { [weak self, weak alert] in
-                if self?.preparationFailureAlert === alert {
-                    self?.preparationFailureAlert = nil
+            alert.addAction(
+                UIAlertAction(
+                    title: action.title,
+                    style: style
+                ) { [weak self, weak alert] _ in
+                    guard let alert else { return }
+                    self?.dismissApprovalAlert(
+                        alert,
+                        intent: intent,
+                        action: action.action
+                    )
                 }
-            }
-        })
-        preparationFailureAlert = alert
+            )
+        }
+
+        presentedApprovalAlert = PresentedApprovalAlert(
+            token: intent.token,
+            controller: alert
+        )
         var presenter: UIViewController = self
         while let presented = presenter.presentedViewController {
             presenter = presented
@@ -348,18 +391,34 @@ class ApproveTransactionViewController: UIViewController {
         presenter.present(alert, animated: true)
     }
 
-    private func presentPendingPreparationFailureIfNeeded() {
-        guard !didCallCompletion,
-              !isPresentingTransactionEditor,
-              !isDismissingTransactionEditor,
-              let pendingPreparationFailure else {
+    private func dismissApprovalAlert(
+        _ alert: UIAlertController,
+        intent: TransactionApprovalAlertIntent,
+        action: TransactionApprovalAlertAction
+    ) {
+        guard let presentedApprovalAlert,
+              presentedApprovalAlert.controller === alert,
+              presentedApprovalAlert.token == intent.token else {
             return
         }
-        self.pendingPreparationFailure = nil
-        showPreparationFailure(
-            attemptID: pendingPreparationFailure.attemptID,
-            forceGasCheck: pendingPreparationFailure.forceGasCheck
-        )
+        alert.dismiss(animated: true) { [weak self, weak alert] in
+            guard let self,
+                  let alert,
+                  let presentedApprovalAlert =
+                    self.presentedApprovalAlert,
+                  presentedApprovalAlert.controller === alert,
+                  presentedApprovalAlert.token == intent.token else {
+                return
+            }
+            self.presentedApprovalAlert = nil
+            if self.approvalCoordinator.isCurrentAlert(intent.token) {
+                self.approvalCoordinator.handleAlert(
+                    token: intent.token,
+                    action: action
+                )
+            }
+            self.presentPendingApprovalAlertIfNeeded()
+        }
     }
     
     private func makeCellLayout() -> CellLayout {
@@ -374,11 +433,9 @@ class ApproveTransactionViewController: UIViewController {
             cellModels.append(.text(text: value, oneLine: false, pro: false))
         }
         
-        let feeIndex = cellModels.count
-        cellModels.append(.text(text: transaction.feeWithSymbol(chain: chain, price: price), oneLine: false, pro: false))
-        
-        let gasPriceIndex = cellModels.count
-        cellModels.append(.text(text: transaction.gasPriceWithLabel(chain: chain), oneLine: false, pro: false))
+        let feeRowsStart = cellModels.count
+        cellModels.append(contentsOf: feeCellModels(price: price))
+        let feeRows = feeRowsStart..<cellModels.count
         
         let sliderIndex: Int?
         if chain.isEthMainnet {
@@ -392,13 +449,19 @@ class ApproveTransactionViewController: UIViewController {
             cellModels.append(.text(text: diplayDataInterpretation, oneLine: false, pro: true))
         }
         
-        return CellLayout(cellModels: cellModels, feeIndex: feeIndex, gasPriceIndex: gasPriceIndex, sliderIndex: sliderIndex)
+        return CellLayout(
+            cellModels: cellModels,
+            feeRows: feeRows,
+            sliderIndex: sliderIndex
+        )
     }
     
     private func updateDisplayedTransactionInfo(initially: Bool) {
         if !initially, isGasSliderTracking {
             needsTableReloadAfterGasSliderInteraction = true
             okButton.isEnabled = canApproveTransaction
+            navigationItem.rightBarButtonItem?.isEnabled =
+                canOpenTransactionEditor
             return
         }
 
@@ -409,26 +472,31 @@ class ApproveTransactionViewController: UIViewController {
             tableView.reloadData()
         }
         okButton.isEnabled = canApproveTransaction
+        navigationItem.rightBarButtonItem?.isEnabled =
+            canOpenTransactionEditor
     }
 
     private var canApproveTransaction: Bool {
-        preparationState.canApprove(
-            transactionID: transaction.id,
-            transactionIsReady: transaction.isReadyForApproval(on: chain)
-        )
+        approvalSnapshot.canApprove
+    }
+
+    private var canOpenTransactionEditor: Bool {
+        approvalSnapshot.canEdit
     }
     
-    private func refreshGasPriceRows() {
+    private func refreshFeeRows() {
         guard let cellLayout else { return }
         let price = priceService.forNetwork(chain)
-        let feeModel: CellModel = .text(text: transaction.feeWithSymbol(chain: chain, price: price), oneLine: false, pro: false)
-        let gasPriceModel: CellModel = .text(text: transaction.gasPriceWithLabel(chain: chain), oneLine: false, pro: false)
-        
-        sectionModels[0][cellLayout.feeIndex] = feeModel
-        sectionModels[0][cellLayout.gasPriceIndex] = gasPriceModel
-        
-        updateVisibleTextCell(at: cellLayout.feeIndex, with: feeModel)
-        updateVisibleTextCell(at: cellLayout.gasPriceIndex, with: gasPriceModel)
+        let feeModels = feeCellModels(price: price)
+        guard feeModels.count == cellLayout.feeRows.count else {
+            updateDisplayedTransactionInfo(initially: false)
+            return
+        }
+
+        for (index, model) in zip(cellLayout.feeRows, feeModels) {
+            sectionModels[0][index] = model
+            updateVisibleTextCell(at: index, with: model)
+        }
         
         if tableView.numberOfSections > 0 {
             UIView.performWithoutAnimation {
@@ -437,6 +505,13 @@ class ApproveTransactionViewController: UIViewController {
             }
         }
         okButton.isEnabled = canApproveTransaction
+        updateGasSliderCellIfNeeded()
+    }
+
+    private func feeCellModels(price: Double?) -> [CellModel] {
+        transaction.feeSummaryLines(chain: chain, price: price).map {
+            .text(text: $0, oneLine: false, pro: false)
+        }
     }
     
     private func updateVisibleTextCell(at row: Int, with model: CellModel) {
@@ -446,34 +521,76 @@ class ApproveTransactionViewController: UIViewController {
     }
     
     private var isSpeedConfigurationEnabled: Bool {
-        guard chain.isEthMainnet,
-              let gasPrice = transaction.gasPriceWei else { return false }
-        return gasPrice > 0 && gasSpeedConfiguration.info != nil
+        gasSpeedConfiguration.isSpeedSelectionAvailable(
+            for: transaction,
+            on: chain,
+            allowsMutation: approvalSnapshot.allowsMutation
+        )
     }
 
     private func updateSpeedConfigurationState() {
         guard chain.isEthMainnet else { return }
-        if let gasPrice = transaction.gasPriceWei, gasPrice > 0 {
-            gasSpeedConfiguration.installTransactionFallback(gasPrice: gasPrice)
+        if let priorityFee = gasSpeedConfiguration.speedPriorityFeePerGas(
+            for: transaction
+        ) {
+            gasSpeedConfiguration.installTransactionFallback(
+                feePerGas: priorityFee
+            )
         }
+        gasSpeedConfiguration.synchronizeSelectedSliderPosition(
+            with: transaction
+        )
         updateGasSliderValueIfNeeded()
-    }
-
-    private func didFetchGasEstimate(_ estimate: GasService.Estimate) {
-        guard gasSpeedConfiguration.applyFetchedEstimate(estimate) else { return }
-        updateSpeedConfigurationState()
     }
     
     private func updateGasSliderValueIfNeeded() {
-        guard !isGasSliderTracking,
-              let sliderIndex = cellLayout?.sliderIndex else { return }
-        if let cell = tableView.cellForRow(at: IndexPath(row: sliderIndex, section: 0)) as? GasPriceSliderTableViewCell {
-            if isSpeedConfigurationEnabled, let gasInfo = gasSpeedConfiguration.info {
-                cell.update(value: transaction.currentGasInRelationTo(info: gasInfo), isEnabled: true)
-            } else {
-                cell.update(value: nil, isEnabled: false)
-            }
+        guard !isGasSliderTracking else { return }
+        updateGasSliderCellIfNeeded()
+    }
+
+    private func updateGasSliderCellIfNeeded() {
+        guard let sliderIndex = cellLayout?.sliderIndex,
+              let cell = tableView.cellForRow(
+                at: IndexPath(row: sliderIndex, section: 0)
+              ) as? GasPriceSliderTableViewCell else {
+            return
         }
+
+        if isSpeedConfigurationEnabled {
+            let value = gasSpeedConfiguration.sliderPosition(
+                for: transaction
+            )
+            cell.update(
+                // Never move the thumb under the user's finger; the
+                // guarded end-of-drag update resyncs it.
+                value: isGasSliderTracking ? nil : value,
+                isEnabled: true,
+                detail: speedDetail()
+            )
+        } else {
+            cell.update(
+                value: nil,
+                isEnabled: false,
+                detail: Strings.calculating.withEllipsis
+            )
+        }
+    }
+
+    private func speedDetail() -> String {
+        let semanticName = gasSpeedConfiguration.semanticSpeed(
+            for: transaction
+        ).localizedName
+
+        let priority = gasSpeedConfiguration.speedPriorityFeePerGas(
+            for: transaction
+        )
+        guard let priority,
+              let priorityText = Transaction.editableGwei(fromWei: priority)
+        else {
+            return semanticName
+        }
+        return "\(semanticName) • \(Strings.priorityFee): " +
+            "\(priorityText) \(Strings.gwei)"
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -483,35 +600,16 @@ class ApproveTransactionViewController: UIViewController {
         }
     }
     
-    private func callCompletion(result: Transaction?) {
-        guard !didCallCompletion else { return }
-        didCallCompletion = true
-        preparationCancellation?.cancel()
-        preparationCancellation = nil
-        preparationState.finish()
-        pendingPreparationFailure = nil
-        preparationFailureAlert = nil
-        completion(result)
-    }
-    
     @IBAction func okButtonTapped(_ sender: Any) {
         guard canApproveTransaction else {
             okButton.isEnabled = false
             return
         }
-        view.isUserInteractionEnabled = false
-        LocalAuthentication.attempt(reason: Strings.sendTransaction, presentPasswordAlertFrom: self, passwordReason: Strings.sendTransaction) { [weak self] success in
-            guard let self, !self.didCallCompletion else { return }
-            if success, self.canApproveTransaction {
-                self.callCompletion(result: self.transaction)
-            } else {
-                self.view.isUserInteractionEnabled = true
-            }
-        }
+        approvalCoordinator.approve()
     }
     
     @IBAction func cancelButtonTapped(_ sender: Any) {
-        callCompletion(result: nil)
+        approvalCoordinator.cancel()
     }
     
 }
@@ -544,10 +642,19 @@ extension ApproveTransactionViewController: UITableViewDataSource {
             let cell = tableView.dequeueReusableCellOfType(GasPriceSliderTableViewCell.self, for: indexPath)
             var value: Double?
             let isEnabled = isSpeedConfigurationEnabled
-            if isEnabled, let gasInfo = gasSpeedConfiguration.info {
-                value = transaction.currentGasInRelationTo(info: gasInfo)
+            if isEnabled {
+                value = gasSpeedConfiguration.sliderPosition(
+                    for: transaction
+                )
             }
-            cell.setup(value: value, isEnabled: isEnabled, delegate: self)
+            cell.setup(
+                value: value,
+                isEnabled: isEnabled,
+                detail: value == nil
+                    ? Strings.calculating.withEllipsis
+                    : speedDetail(),
+                delegate: self
+            )
             return cell
         }
         
@@ -565,43 +672,71 @@ extension ApproveTransactionViewController: UITableViewDataSource {
 
 extension ApproveTransactionViewController: GasPriceSliderDelegate {
 
-    func sliderInteractionStarted() {
+    func sliderInteractionStarted(value: Double) {
+        guard approvalSnapshot.allowsMutation,
+              isSpeedConfigurationEnabled else {
+            return
+        }
         isGasSliderTracking = true
+        gasSliderInteractionStartValue = Float(value)
+        gasSliderInteractionDidMove = false
         gasSpeedConfiguration.markGasSliderInteraction()
+        approvalCoordinator.beginSliderInteraction()
     }
 
     func sliderInteractionEnded() {
         isGasSliderTracking = false
-        let shouldPrepare = gasSliderPreparationRestart.consume()
+        let didChangeFee =
+            approvalCoordinator.endSliderInteraction()
+        let didInstallPendingQuote =
+            gasSpeedConfiguration.endGasSliderInteraction(
+                didChangeFee: didChangeFee
+            )
+        gasSliderInteractionStartValue = nil
+        gasSliderInteractionDidMove = false
         if needsTableReloadAfterGasSliderInteraction {
             needsTableReloadAfterGasSliderInteraction = false
             updateDisplayedTransactionInfo(initially: false)
         }
-        updateGasSliderValueIfNeeded()
-        if shouldPrepare {
-            prepareTransaction(forceGasCheck: false)
+        if didInstallPendingQuote {
+            updateSpeedConfigurationState()
         }
+        updateGasSliderValueIfNeeded()
     }
     
     func sliderValueChanged(value: Double) {
-        guard let gasInfo = gasSpeedConfiguration.info else { return }
-        gasSpeedConfiguration.markGasSliderInteraction()
-        let previousGasPrice = transaction.gasPriceValue
-        transaction.setGasPrice(value: value, inRelationTo: gasInfo)
-        let didChangeGasPrice =
-            transaction.gasPriceValue != previousGasPrice
-        if didChangeGasPrice {
-            gasSpeedConfiguration.markGasSliderGasPriceChange()
-            if gasSliderPreparationRestart.recordMutation() {
-                invalidatePreparationForEditing()
-            }
+        guard approvalSnapshot.allowsMutation,
+              let gasInfo = gasSpeedConfiguration.info else {
+            return
         }
-        refreshGasPriceRows()
-        updateGasSliderValueIfNeeded()
-        if didChangeGasPrice,
-           !isGasSliderTracking,
-           gasSliderPreparationRestart.consume() {
-            prepareTransaction(forceGasCheck: false)
+        if isGasSliderTracking,
+           !gasSliderInteractionDidMove,
+           let startValue = gasSliderInteractionStartValue,
+           abs(Float(value) - startValue) < 0.001 {
+            return
+        }
+        gasSliderInteractionDidMove = true
+        gasSpeedConfiguration.markGasSliderInteraction()
+        let didChangeFee = approvalCoordinator.setFeeForSpeed(
+            value: value,
+            inRelationTo: gasInfo
+        )
+        gasSpeedConfiguration.recordSelectedSliderPosition(
+            value,
+            for: transaction
+        )
+        if didChangeFee {
+            gasSpeedConfiguration.markGasSliderFeeChange()
+        }
+        refreshFeeRows()
+        if !isGasSliderTracking {
+            let didInstallPendingQuote =
+                gasSpeedConfiguration.endGasSliderInteraction(
+                didChangeFee: didChangeFee
+            )
+            if didInstallPendingQuote {
+                updateSpeedConfigurationState()
+            }
         }
     }
     
@@ -629,7 +764,7 @@ extension ApproveTransactionViewController: UIPopoverPresentationControllerDeleg
         guard isDismissingTransactionEditor else { return }
         transactionEditorController = nil
         isDismissingTransactionEditor = false
-        presentPendingPreparationFailureIfNeeded()
+        presentPendingApprovalAlertIfNeeded()
     }
     
 }

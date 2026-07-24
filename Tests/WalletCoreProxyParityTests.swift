@@ -3120,6 +3120,157 @@ final class WalletCoreProxyEthereumTests: XCTestCase {
         XCTAssertEqual(WalletCrypto.hexString(maxAmountTransaction), Vectors.signedMaxAmountTransaction)
     }
 
+    func testSignEIP1559GnosisIncidentVector() throws {
+        let privateKey = try requirePrivateKey(Vectors.ethereumTransactionPrivateKey)
+        let signedTransaction = try XCTUnwrap(WalletCrypto.signEthereumEIP1559Transaction(
+            chainID: Vectors.data(hex: "64"),
+            nonce: Data(),
+            maxPriorityFeePerGas: Vectors.data(hex: "01"),
+            maxFeePerGas: Vectors.data(hex: "0265"),
+            gasLimit: Vectors.data(hex: "5208"),
+            toAddress: "0x0000000000000000000000000000000000000001",
+            privateKey: privateKey,
+            amount: Data(),
+            data: Data(),
+            accessList: []
+        ))
+
+        XCTAssertEqual(
+            WalletCrypto.hexString(signedTransaction),
+            "02f8646480018202658252089400000000000000000000000000000000000000018080c001a06d393ebea2b95f5ce970d3714e1373ee2540baf804b87a9e089ec0ebcdd910eba04b8e799a5477b8ac85e2551c3f36102d4d6130ae6d8f73db5a2ae55734284bcd"
+        )
+    }
+
+    func testSignEIP1559TransactionWithAccessListMatchesIndependentVector() throws {
+        let privateKey = try requirePrivateKey(Vectors.ethereumTransactionPrivateKey)
+        let firstEntry = try XCTUnwrap(EthereumAccessListEntry(
+            address: Vectors.data(hex: "0000000000000000000000000000000000000101"),
+            storageKeys: [
+                Vectors.data(hex: String(repeating: "0", count: 64)),
+                Vectors.data(hex: String(repeating: "0", count: 60) + "60a7"),
+            ]
+        ))
+        let secondEntry = try XCTUnwrap(EthereumAccessListEntry(
+            address: Vectors.data(hex: "1111111111111111111111111111111111111111"),
+            storageKeys: []
+        ))
+        let signedTransaction = try XCTUnwrap(WalletCrypto.signEthereumEIP1559Transaction(
+            chainID: Vectors.data(hex: "2105"),
+            nonce: Vectors.data(hex: "06"),
+            maxPriorityFeePerGas: Vectors.data(hex: "59682f00"),
+            maxFeePerGas: Vectors.data(hex: "09502f9000"),
+            gasLimit: Vectors.data(hex: "0186a0"),
+            toAddress: "0x3535353535353535353535353535353535353535",
+            privateKey: privateKey,
+            amount: Vectors.data(hex: "01"),
+            data: Vectors.data(hex: "deadbeef"),
+            accessList: [firstEntry, secondEntry]
+        ))
+
+        XCTAssertEqual(
+            WalletCrypto.hexString(signedTransaction),
+            "02f8e5822105068459682f008509502f9000830186a09435353535353535353535353535353535353535350184deadbeeff872f859940000000000000000000000000000000000000101f842a00000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000060a7d6941111111111111111111111111111111111111111c080a014dd6d80870ac4a49e57ae811431fb78be23f11b96846631f823204cf892f6c9a026e1a1ce4bf3cc048eb39089271fc8e1bab0eb75e16630737e8f3fc827f4b1dd"
+        )
+    }
+
+    func testSignEIP1559ContractCreationMatchesIndependentVector() throws {
+        let privateKey = try requirePrivateKey(Vectors.ethereumTransactionPrivateKey)
+        let signedTransaction = try XCTUnwrap(WalletCrypto.signEthereumEIP1559Transaction(
+            chainID: Vectors.data(hex: "01"),
+            nonce: Vectors.data(hex: "03"),
+            maxPriorityFeePerGas: Vectors.data(hex: "02"),
+            maxFeePerGas: Vectors.data(hex: "64"),
+            gasLimit: Vectors.data(hex: "0186a0"),
+            toAddress: "",
+            privateKey: privateKey,
+            amount: Data(),
+            data: Vectors.data(hex: "6001600055"),
+            accessList: []
+        ))
+
+        XCTAssertEqual(
+            WalletCrypto.hexString(signedTransaction),
+            "02f85401030264830186a08080856001600055c001a09defa71726d2cdcad446aabf44b77d814f45b43ddef0693a1b637c48caea1847a056f497f6f66c2d45a74e5158d4ebd65aba721c0da7b2aeb904ebad977cf407a6"
+        )
+    }
+
+    func testSignEIP1559ValidatesQuantitiesFeesAddressesAndAccessLists() throws {
+        let privateKey = try requirePrivateKey(Vectors.ethereumTransactionPrivateKey)
+        let destination = "0x0000000000000000000000000000000000000001"
+
+        func sign(chainID: Data = Vectors.data(hex: "01"),
+                  nonce: Data = Data(),
+                  priority: Data = Vectors.data(hex: "01"),
+                  maxFee: Data = Vectors.data(hex: "02"),
+                  gasLimit: Data = Vectors.data(hex: "5208"),
+                  toAddress: String = destination,
+                  amount: Data = Data()) -> Data? {
+            WalletCrypto.signEthereumEIP1559Transaction(
+                chainID: chainID,
+                nonce: nonce,
+                maxPriorityFeePerGas: priority,
+                maxFeePerGas: maxFee,
+                gasLimit: gasLimit,
+                toAddress: toAddress,
+                privateKey: privateKey,
+                amount: amount,
+                data: Data(),
+                accessList: []
+            )
+        }
+
+        let maxUInt256 = Data(repeating: 0xff, count: 32)
+        let overUInt256 = Data([0x01]) + Data(repeating: 0, count: 32)
+        XCTAssertNotNil(sign(chainID: maxUInt256,
+                             nonce: maxUInt256,
+                             priority: maxUInt256,
+                             maxFee: maxUInt256,
+                             gasLimit: maxUInt256,
+                             amount: maxUInt256))
+        XCTAssertNotNil(sign(chainID: Data([0]) + maxUInt256,
+                             nonce: Data(repeating: 0, count: 33)),
+                        "Leading zero bytes do not change an unsigned integer's value")
+        for oversizedValue in [
+            sign(chainID: overUInt256),
+            sign(nonce: overUInt256),
+            sign(priority: overUInt256, maxFee: overUInt256),
+            sign(maxFee: overUInt256),
+            sign(gasLimit: overUInt256),
+            sign(amount: overUInt256),
+        ] {
+            XCTAssertNil(oversizedValue)
+        }
+        XCTAssertNil(sign(priority: Vectors.data(hex: "02"), maxFee: Vectors.data(hex: "01")))
+
+        for invalidAddress in [
+            "0x",
+            "0xdeadbeef",
+            "deadbeef",
+            "0x000000000000000000000000000000000000000g",
+            "0x00000000000000000000000000000000000000001",
+        ] {
+            XCTAssertNil(sign(toAddress: invalidAddress), invalidAddress)
+        }
+
+        XCTAssertNil(EthereumAccessListEntry(address: Data(repeating: 0, count: 19), storageKeys: []))
+        XCTAssertNil(EthereumAccessListEntry(address: Data(repeating: 0, count: 21), storageKeys: []))
+        XCTAssertNil(EthereumAccessListEntry(
+            address: Data(repeating: 0, count: 20),
+            storageKeys: [Data(repeating: 0, count: 31)]
+        ))
+        XCTAssertNotNil(EthereumAccessListEntry(
+            address: Data(repeating: 0, count: 20),
+            storageKeys: [Data(repeating: 0, count: 32)]
+        ))
+    }
+
+    func testEIP1559SignatureYParityRejectsUnsupportedRecoveryIDs() {
+        XCTAssertEqual(EthereumTransactionSigner.eip1559SignatureYParity(recovery: 0), Data())
+        XCTAssertEqual(EthereumTransactionSigner.eip1559SignatureYParity(recovery: 1), Data([1]))
+        XCTAssertNil(EthereumTransactionSigner.eip1559SignatureYParity(recovery: 2))
+        XCTAssertNil(EthereumTransactionSigner.eip1559SignatureYParity(recovery: 3))
+    }
+
     func testLegacyTransactionSignatureVRejectsUnsupportedRecoveryIDs() {
         XCTAssertEqual(EthereumTransactionSigner.legacySignatureV(chainID: Data(), recovery: 0), Data([27]))
         XCTAssertEqual(EthereumTransactionSigner.legacySignatureV(chainID: Data(), recovery: 1), Data([28]))

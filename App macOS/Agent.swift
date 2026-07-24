@@ -108,17 +108,15 @@ class Agent: NSObject {
         }
     }
     
-    func showApprove(windowController: NSWindowController, browser: Browser?, transaction: Transaction, account: WalletAccount, walletId: String, chain: EthereumNetwork, peerMeta: PeerMeta?, completion: @escaping (Transaction?) -> Void) {
-        let window = windowController.window
-        let approveViewController = ApproveTransactionViewController.with(transaction: transaction, chain: chain, account: account, walletId: walletId, peerMeta: peerMeta) { [weak self, weak window] transaction in
-            if transaction != nil {
-                self?.askAuthentication(on: window, browser: browser, onStart: false, reason: .sendTransaction) { success in
-                    completion(success ? transaction : nil)
-                }
-            } else {
-                completion(nil)
-            }
-        }
+    func showApprove(windowController: NSWindowController, transaction: Transaction, account: WalletAccount, walletId: String, chain: EthereumNetwork, peerMeta: PeerMeta?, completion: @escaping (Transaction?) -> Void) {
+        let approveViewController = ApproveTransactionViewController.with(
+            transaction: transaction,
+            chain: chain,
+            account: account,
+            walletId: walletId,
+            peerMeta: peerMeta,
+            completion: completion
+        )
         windowController.contentViewController = approveViewController
     }
     
@@ -181,7 +179,16 @@ class Agent: NSObject {
         }
     }
     
-    func askAuthentication(on: NSWindow?, getBackTo: NSViewController? = nil, browser: Browser?, onStart: Bool, reason: AuthenticationReason, completion: @escaping (Bool) -> Void) {
+    @discardableResult
+    func askAuthentication(
+        on: NSWindow?,
+        getBackTo: NSViewController? = nil,
+        browser: Browser?,
+        onStart: Bool,
+        reason: AuthenticationReason,
+        onWindowClose: (() -> Void)? = nil,
+        completion: @escaping (Bool) -> Void
+    ) -> LAContext? {
         let context = LAContext()
         var error: NSError?
         let policy = LAPolicy.deviceOwnerAuthenticationWithBiometrics
@@ -189,7 +196,11 @@ class Agent: NSObject {
         
         func showPasswordScreen() {
             let window = on ?? Window.showNew(closeOthers: onStart).window
-            let passwordViewController = PasswordViewController.with(mode: .enter, reason: reason) { [weak window] success in
+            let passwordViewController = PasswordViewController.with(
+                mode: .enter,
+                reason: reason,
+                windowCloseCompletion: onWindowClose
+            ) { [weak window] success in
                 if let getBackTo = getBackTo {
                     window?.contentViewController = getBackTo
                 } else if let browser = browser {
@@ -214,8 +225,10 @@ class Agent: NSObject {
                     completion(success)
                 }
             }
+            return context
         } else {
             showPasswordScreen()
+            return nil
         }
     }
 
@@ -261,7 +274,7 @@ class Agent: NSObject {
         case .approveTransaction(let action):
             let windowController = Window.showNew(closeOthers: false)
             windowNumber = windowController.window?.windowNumber
-            showApprove(windowController: windowController, browser: .safari, transaction: action.transaction, account: action.account, walletId: action.walletId, chain: action.chain, peerMeta: action.peerMeta, completion: action.completion)
+            showApprove(windowController: windowController, transaction: action.transaction, account: action.account, walletId: action.walletId, chain: action.chain, peerMeta: action.peerMeta, completion: action.completion)
         case .justShowApp:
             let windowController = Window.showNew(closeOthers: true)
             windowNumber = windowController.window?.windowNumber
@@ -302,7 +315,17 @@ private extension Agent.ExternalRequest {
         case .safari(let request):
             guard ExtensionBridge.hasPendingRequest(id: request.id) else { return }
             ExtensionBridge.removeRequest(id: request.id)
-            ExtensionBridge.respond(response: ResponseToExtension(for: request, error: Strings.canceled))
+            ExtensionBridge.respond(
+                response: ResponseToExtension(
+                    for: request,
+                    payload: .error(
+                        ProviderResponseError(
+                            message: Strings.canceled,
+                            code: 4001
+                        )
+                    )
+                )
+            )
         }
     }
 

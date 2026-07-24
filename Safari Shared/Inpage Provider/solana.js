@@ -5,7 +5,10 @@
 import Utils from "./utils";
 import IdMapping from "./id_mapping";
 import Base58 from "./base58";
-import ProviderRpcError from "./error";
+import ProviderRpcError, {
+    decodeProviderErrorData,
+    normalizeSolanaProviderError,
+} from "./error";
 import { EventEmitter } from "events";
 
 const walletName = "Big Wallet";
@@ -882,8 +885,16 @@ class BigWalletSolana extends EventEmitter {
         throw new ProviderRpcError(4200, "Big Wallet does not support this Solana transaction format");
     }
 
+    nextPayloadId() {
+        let id = Utils.genId();
+        while (this.pendingRequests.has(id) || this.callbacks.has(id)) {
+            id += 1;
+        }
+        return id;
+    }
+
     signTransactionPayload(message) {
-        return { method: "signTransaction", params: { message: message }, id: Utils.genId() };
+        return { method: "signTransaction", params: { message: message }, id: this.nextPayloadId() };
     }
 
     signTransaction(transaction) {
@@ -900,7 +911,7 @@ class BigWalletSolana extends EventEmitter {
         const messages = transactions.map((transaction) => {
             return this.encodedMessageFor(transaction);
         });
-        const payload = { method: "signAllTransactions", params: { messages: messages }, id: Utils.genId() };
+        const payload = { method: "signAllTransactions", params: { messages: messages }, id: this.nextPayloadId() };
         this.trackPendingRequest(payload.id, { transactions: transactions });
         return this.request(payload);
     }
@@ -910,7 +921,7 @@ class BigWalletSolana extends EventEmitter {
         if (typeof options !== "undefined") {
             params.options = options;
         }
-        const payload = { method: "signAndSendTransaction", params: params, id: Utils.genId() };
+        const payload = { method: "signAndSendTransaction", params: params, id: this.nextPayloadId() };
         this.trackPendingRequest(payload.id);
         return this.request(payload);
     }
@@ -920,7 +931,7 @@ class BigWalletSolana extends EventEmitter {
         if (typeof display !== "undefined") {
             params.display = display;
         }
-        const payload = { method: "signMessage", params: params, id: Utils.genId() };
+        const payload = { method: "signMessage", params: params, id: this.nextPayloadId() };
         this.trackPendingRequest(payload.id, { respondWithBuffer: true });
         return this.request(payload);
     }
@@ -942,10 +953,6 @@ class BigWalletSolana extends EventEmitter {
         this.idMapping.tryFixId(payload);
         this.movePendingRequest(originalId, payload.id);
         return new Promise((resolve, reject) => {
-            if (!payload.id) {
-                payload.id = Utils.genId();
-            }
-
             if (payload.method === "signMessage" && !this.pendingRequests.has(payload.id)) {
                 this.trackPendingRequest(payload.id, { respondWithBuffer: true });
             }
@@ -1240,7 +1247,19 @@ class BigWalletSolana extends EventEmitter {
             if (this.shouldDisconnectForUnauthorizedResponse(response, pendingRequest)) {
                 this.performDisconnect();
             }
-            this.sendError(id, response.error, response.errorCode, this.errorDataForResponse(response));
+            const decodedData = decodeProviderErrorData(response.errorDataJSON);
+            const data =
+                typeof decodedData !== "undefined"
+                    ? decodedData
+                    : typeof response.errorSignature === "string"
+                        ? { signature: response.errorSignature }
+                        : undefined;
+            this.sendError(
+                id,
+                response.error,
+                response.errorCode,
+                data
+            );
         }
     }
 
@@ -1272,45 +1291,17 @@ class BigWalletSolana extends EventEmitter {
         }
     }
 
-    errorDataForResponse(response) {
-        if (typeof response.errorSignature === "string") {
-            return { signature: response.errorSignature };
-        }
-
-        return undefined;
-    }
-
-    providerError(error, code, data) {
-        if (error instanceof Error) {
-            if (typeof data !== "undefined" &&
-                typeof error.data === "undefined" &&
-                typeof error.code === "number") {
-                return new ProviderRpcError(error.code, error.message || "Big Wallet request failed", data);
-            }
-            return error;
-        }
-
-        if (error && typeof error === "object" && typeof error.code === "number") {
-            return new ProviderRpcError(error.code, error.message || "Big Wallet request failed", data);
-        }
-
-        if (typeof code === "number") {
-            return new ProviderRpcError(code, error || "Big Wallet request failed", data);
-        }
-
-        if (typeof error === "string" && error.toLowerCase() === "canceled") {
-            return new ProviderRpcError(4001, error);
-        }
-
-        return new Error(error);
-    }
-
     sendError(id, error, code, data) {
+        const normalizedError = normalizeSolanaProviderError(
+            error,
+            code,
+            data
+        );
         this.idMapping.tryPopId(id);
         this.pendingRequests.delete(id);
         const callback = this.callbacks.get(id);
         if (callback) {
-            callback(this.providerError(error, code, data), null);
+            callback(normalizedError, null);
             this.callbacks.delete(id);
         }
     }

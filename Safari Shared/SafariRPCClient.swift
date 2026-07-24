@@ -59,6 +59,7 @@ final class SafariRPCClient {
 
     func send(endpoint: EthereumRPCEndpoint,
               body: Data,
+              expectedResponseID: Int,
               completion: @escaping ([String: Any]?) -> Void) {
         Task {
             do {
@@ -70,13 +71,14 @@ final class SafariRPCClient {
                 } else {
                     authorization = nil
                 }
-                self.performSend(
+                let response = try await self.performSend(
                     endpoint: endpoint,
                     body: body,
                     authorization: authorization,
                     didRetryUnauthorized: false,
-                    completion: completion
+                    expectedResponseID: expectedResponseID
                 )
+                completion(response)
             } catch {
                 completion(nil)
             }
@@ -87,7 +89,8 @@ final class SafariRPCClient {
                              body: Data,
                              authorization: AlchemyAuthorization?,
                              didRetryUnauthorized: Bool,
-                             completion: @escaping ([String: Any]?) -> Void) {
+                             expectedResponseID: Int) async throws
+        -> [String: Any]? {
         let url = endpoint.url
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -96,53 +99,113 @@ final class SafariRPCClient {
         request.httpBody = body
         authorization?.apply(to: &request)
 
-        urlSession.dataTask(with: request) { data, response, _ in
-            if let httpResponse = response as? HTTPURLResponse,
-               httpResponse.statusCode == 401,
-               let authorization {
-                guard !didRetryUnauthorized,
-                      Self.allowsUnauthorizedReplay(for: body) else {
-                    Task {
-                        await self.authorizationProvider.invalidateAuthorization(
-                            afterUnauthorized: authorization,
-                            for: url
-                        )
-                        completion(nil)
-                    }
-                    return
-                }
-                Task {
-                    do {
-                        guard let replacement = try await self.authorizationProvider
-                            .replacementAuthorization(
-                                afterUnauthorized: authorization,
-                                for: url
-                            ) else {
-                            completion(nil)
-                            return
-                        }
-                        self.performSend(
-                            endpoint: endpoint,
-                            body: body,
-                            authorization: replacement,
-                            didRetryUnauthorized: true,
-                            completion: completion
-                        )
-                    } catch {
-                        completion(nil)
-                    }
-                }
-                return
+        let redirectDelegate = SafariRPCRedirectDelegate(
+            allowsRedirect: Self.allowsRedirect(
+                for: body,
+                isAuthorized: authorization != nil
+            )
+        )
+        let (data, response) = try await urlSession.data(
+            for: request,
+            delegate: redirectDelegate
+        )
+        if let httpResponse = response as? HTTPURLResponse,
+           httpResponse.statusCode == 401,
+           let authorization {
+            guard !didRetryUnauthorized,
+                  Self.allowsUnauthorizedReplay(for: body) else {
+                await self.authorizationProvider.invalidateAuthorization(
+                    afterUnauthorized: authorization,
+                    for: url
+                )
+                return Self.responseDictionary(
+                    from: data,
+                    expectedResponseID: expectedResponseID
+                )
             }
 
-            guard let data,
-                  let object = try? JSONSerialization.jsonObject(with: data),
-                  let response = object as? [String: Any] else {
-                completion(nil)
-                return
+            guard let replacement = try await self.authorizationProvider
+                .replacementAuthorization(
+                    afterUnauthorized: authorization,
+                    for: url
+                ) else {
+                return nil
             }
-            completion(response)
-        }.resume()
+            return try await self.performSend(
+                endpoint: endpoint,
+                body: body,
+                authorization: replacement,
+                didRetryUnauthorized: true,
+                expectedResponseID: expectedResponseID
+            )
+        }
+
+        return Self.responseDictionary(
+            from: data,
+            expectedResponseID: expectedResponseID
+        )
+    }
+
+    static func allowsRedirect(
+        for body: Data,
+        isAuthorized: Bool
+    ) -> Bool {
+        !isAuthorized && allowsUnauthorizedReplay(for: body)
+    }
+
+    private static func responseDictionary(
+        from data: Data,
+        expectedResponseID: Int
+    ) -> [String: Any]? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+
+        if var response = object as? [String: Any] {
+            if let responseID = response["id"],
+               !(responseID is NSNull) {
+                guard responseIDMatches(
+                    responseID,
+                    expectedResponseID: expectedResponseID
+                ) else {
+                    return nil
+                }
+            }
+            response["id"] = expectedResponseID
+            return response
+        }
+
+        guard let batch = object as? [Any] else {
+            return nil
+        }
+        let matches = batch.compactMap { value -> [String: Any]? in
+            guard let response = value as? [String: Any],
+                  responseIDMatches(
+                      response["id"],
+                      expectedResponseID: expectedResponseID
+                  ) else {
+                return nil
+            }
+            return response
+        }
+        guard matches.count == 1 else { return nil }
+        var match = matches[0]
+        match["id"] = expectedResponseID
+        return match
+    }
+
+    private static func responseIDMatches(
+        _ value: Any?,
+        expectedResponseID: Int
+    ) -> Bool {
+        if let number = value as? NSNumber,
+           CFGetTypeID(number) != CFBooleanGetTypeID() {
+            return number as? Int == expectedResponseID
+        }
+        if let string = value as? String {
+            return Int(string) == expectedResponseID
+        }
+        return false
     }
 
     private static func allowsUnauthorizedReplay(for body: Data) -> Bool {
@@ -151,22 +214,22 @@ final class SafariRPCClient {
         }
 
         if let request = object as? [String: Any] {
-            guard let method = request["method"] as? String else {
-                return false
-            }
-            return method == "eth_sendRawTransaction"
-                || Self.isReplaySafeReadMethod(method)
+            return Self.isReplaySafeRequest(request)
         }
 
         guard let batch = object as? [[String: Any]], !batch.isEmpty else {
             return false
         }
-        return batch.allSatisfy { request in
-            guard let method = request["method"] as? String else {
-                return false
-            }
-            return Self.isReplaySafeReadMethod(method)
+        return batch.allSatisfy { Self.isReplaySafeRequest($0) }
+    }
+
+    private static func isReplaySafeRequest(
+        _ request: [String: Any]
+    ) -> Bool {
+        guard let method = request["method"] as? String else {
+            return false
         }
+        return Self.isReplaySafeReadMethod(method)
     }
 
     private static func isReplaySafeReadMethod(_ method: String) -> Bool {
@@ -174,6 +237,26 @@ final class SafariRPCClient {
             || Self.replaySafeMethodPrefixes.contains {
                 method.hasPrefix($0)
             }
+    }
+
+}
+
+final class SafariRPCRedirectDelegate: NSObject, URLSessionTaskDelegate {
+
+    private let allowsRedirect: Bool
+
+    init(allowsRedirect: Bool) {
+        self.allowsRedirect = allowsRedirect
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(allowsRedirect ? request : nil)
     }
 
 }

@@ -146,6 +146,32 @@ Worker tests generate ephemeral RSA keys inside the local Workers runtime.
 Tool tests use only ephemeral keys and local fake HTTP responses. No production
 secret is required for either suite.
 
+### Fee-market catalog probe
+
+`npm run probe:fee-markets -- [options]` prints current fee-market observations
+without editing `Shared/Ethereum/NetworkCatalog.json`. To materialize the
+results, pass `--output PATH` after supplying any required Alchemy
+authorization options. The output must not already exist and must differ from
+the source catalog.
+
+Candidates replace a network's `feeMarketHint` only when the endpoint returned
+conclusive evidence. Authentication rejection, network or timeout failure,
+non-success HTTP status, malformed JSON or JSON-RPC envelope, and JSON-RPC
+errors other than `eth_feeHistory` method-not-found preserve the complete
+previous hint, including its original timestamp. Successful RPC `result`
+values that are malformed, refer to another chain, or contradict each other
+are conclusive `unknown` observations and do replace the hint. A mixed run
+writes a complete candidate containing updated conclusive records and
+preserved inconclusive ones; a wholly inconclusive run creates no candidate.
+
+Review and diff the candidate against `Shared/Ethereum/NetworkCatalog.json`.
+Apply it explicitly only after verifying the complete change. The probe never
+replaces the source catalog.
+
+The JSON report always describes the current probe attempt. It intentionally
+does not expose the internal persistence decision, so an inconclusive
+`unknown` report can accompany a preserved catalog hint.
+
 ## Existing signing-key bundle and preflight
 
 This remediation rollout does **not** rotate the Alchemy signing key. Reuse the

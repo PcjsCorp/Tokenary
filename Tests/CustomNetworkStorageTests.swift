@@ -328,7 +328,12 @@ final class CustomNetworkStorageTests: XCTestCase {
 
         XCTAssertEqual(resolver.visibleCustomNetworks.map(\.chainId), [64240])
         XCTAssertEqual(resolver.resolve(chainId: 1).resolvedNetwork?.source, .alchemy)
-        XCTAssertEqual(resolver.resolve(chainId: 64240).resolvedNetwork?.source, .custom)
+        let custom = try XCTUnwrap(
+            resolver.resolve(chainId: 64240).resolvedNetwork
+        )
+        XCTAssertEqual(custom.source, .custom)
+        XCTAssertNil(custom.rpcEndpoint.feeMarketHint)
+        XCTAssertTrue(custom.rpcEndpoint.requiresFeeMarketDetection())
         XCTAssertEqual(
             resolver.rpcURL(chainId: 64240)?.absoluteString,
             "https://custom-64240.example"
@@ -424,7 +429,12 @@ final class CustomNetworkStorageTests: XCTestCase {
             displayPrice: false,
             alchemyNetwork: alchemyNetwork,
             fallbackRPCURL: nil,
-            accountDisabledAlchemyNetwork: nil
+            accountDisabledAlchemyNetwork: nil,
+            feeMarketHint: EthereumFeeMarketHint(
+                support: .unknown,
+                checkedAt: "2026-07-23T00:00:00Z",
+                observedEndpoint: "https://\(alchemyNetwork).g.alchemy.com/v2"
+            )
         )
     }
 

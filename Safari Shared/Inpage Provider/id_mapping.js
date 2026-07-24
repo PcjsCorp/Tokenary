@@ -11,12 +11,22 @@ class IdMapping {
         this.intIds = new Map;
     }
     
+    nextAvailableId() {
+        let id = Utils.genId();
+        while (this.intIds.has(id)) {
+            id += 1;
+        }
+        return id;
+    }
+
     tryFixId(payload) {
-        if (!payload.id) {
-            payload.id = Utils.genId();
+        const hasNonFiniteNumberId =
+            typeof payload.id === "number" && !Number.isFinite(payload.id);
+        if (typeof payload.id === "undefined" || hasNonFiniteNumberId) {
+            payload.id = this.nextAvailableId();
             this.intIds.set(payload.id, payload.id);
         } else if (typeof payload.id !== "number" || this.intIds.has(payload.id) ) {
-            let newId = Utils.genId();
+            const newId = this.nextAvailableId();
             this.intIds.set(newId, payload.id);
             payload.id = newId;
         } else {
@@ -25,10 +35,11 @@ class IdMapping {
     }
     
     tryPopId(id) {
-        let originId = this.intIds.get(id);
-        if (originId) {
-            this.intIds.delete(id);
+        if (!this.intIds.has(id)) {
+            return undefined;
         }
+        const originId = this.intIds.get(id);
+        this.intIds.delete(id);
         return originId;
     }
 }
