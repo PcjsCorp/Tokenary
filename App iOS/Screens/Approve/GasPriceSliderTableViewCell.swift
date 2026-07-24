@@ -159,15 +159,12 @@ class GasPriceSliderTableViewCell: UITableViewCell {
 
             speedDetailLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: 4),
             speedDetailLabel.leadingAnchor.constraint(
-                greaterThanOrEqualTo: contentView.leadingAnchor,
+                equalTo: contentView.leadingAnchor,
                 constant: 20
             ),
             speedDetailLabel.trailingAnchor.constraint(
-                lessThanOrEqualTo: contentView.trailingAnchor,
+                equalTo: contentView.trailingAnchor,
                 constant: -20
-            ),
-            speedDetailLabel.centerXAnchor.constraint(
-                equalTo: contentView.centerXAnchor
             ),
             contentView.bottomAnchor.constraint(
                 equalTo: speedDetailLabel.bottomAnchor,

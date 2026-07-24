@@ -11,7 +11,7 @@ class MultilineLabelTableViewCell: UITableViewCell {
         label.contentMode = .left
         label.text = "label"
         label.font = .systemFont(ofSize: 17)
-        label.textAlignment = .left
+        label.textAlignment = .natural
         label.lineBreakMode = .byCharWrapping
         label.numberOfLines = 0
         label.setContentHuggingPriority(UILayoutPriority(251), for: .horizontal)
@@ -57,7 +57,7 @@ class MultilineLabelTableViewCell: UITableViewCell {
             multilineLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
             multilineLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
             contentView.bottomAnchor.constraint(greaterThanOrEqualTo: multilineLabel.bottomAnchor, constant: 12),
-            contentView.trailingAnchor.constraint(greaterThanOrEqualTo: multilineLabel.trailingAnchor, constant: 12)
+            contentView.trailingAnchor.constraint(equalTo: multilineLabel.trailingAnchor, constant: 12)
         ])
     }
     

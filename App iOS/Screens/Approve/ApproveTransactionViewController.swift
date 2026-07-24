@@ -5,16 +5,13 @@ import SwiftUI
 
 class ApproveTransactionViewController: UIViewController {
     
-    private enum CellModel {
-        case text(text: String, oneLine: Bool, pro: Bool)
-        case textWithImage(text: String, extraText: String?, imageURL: String?, image: UIImage?)
-        case gasPriceSlider
-    }
-    
-    private struct CellLayout {
-        let cellModels: [CellModel]
-        let feeRows: Range<Int>
-        let sliderIndex: Int?
+    private struct StaticRows {
+        let cells: [UITableViewCell]
+        let accountCell: ImageWithLabelTableViewCell
+        let valueCell: MultilineLabelTableViewCell?
+        let feeCells: [MultilineLabelTableViewCell]
+        let sliderCell: GasPriceSliderTableViewCell?
+        let dataCell: MultilineLabelTableViewCell?
     }
 
     private struct PresentedApprovalAlert {
@@ -26,9 +23,6 @@ class ApproveTransactionViewController: UIViewController {
         didSet {
             tableView.delegate = self
             tableView.dataSource = self
-            tableView.registerReusableCell(type: MultilineLabelTableViewCell.self)
-            tableView.registerReusableCell(type: ImageWithLabelTableViewCell.self)
-            tableView.registerReusableCell(type: GasPriceSliderTableViewCell.self)
             let bottomOverlayHeight: CGFloat = 70
             tableView.contentInset.bottom += bottomOverlayHeight
             tableView.verticalScrollIndicatorInsets.bottom += bottomOverlayHeight
@@ -38,8 +32,7 @@ class ApproveTransactionViewController: UIViewController {
     private let ethereum = Ethereum.shared
     private let priceService = PriceService.shared
     private var gasSpeedConfiguration = GasSpeedConfiguration()
-    private var sectionModels = [[CellModel]]()
-    private var cellLayout: CellLayout?
+    private var staticRows: StaticRows?
     
     private var walletId: String!
     private var account: WalletAccount!
@@ -52,7 +45,6 @@ class ApproveTransactionViewController: UIViewController {
     private var isGasSliderTracking = false
     private var gasSliderInteractionStartValue: Float?
     private var gasSliderInteractionDidMove = false
-    private var needsTableReloadAfterGasSliderInteraction = false
     private var presentedApprovalAlert: PresentedApprovalAlert?
     private var pendingApprovalAlert: TransactionApprovalAlertIntent?
     private var isPresentingTransactionEditor = false
@@ -104,7 +96,6 @@ class ApproveTransactionViewController: UIViewController {
         editTransactionItem.tintColor = .tertiaryLabel
         navigationItem.rightBarButtonItem = editTransactionItem
         isModalInPresentation = true
-        sectionModels = [[]]
 
         updateDisplayedTransactionInfo(initially: true)
         approvalCoordinator.startPreparation(forceGasCheck: false)
@@ -279,7 +270,6 @@ class ApproveTransactionViewController: UIViewController {
         isGasSliderTracking = false
         gasSliderInteractionStartValue = nil
         gasSliderInteractionDidMove = false
-        needsTableReloadAfterGasSliderInteraction = false
         completion(result)
     }
 
@@ -421,59 +411,129 @@ class ApproveTransactionViewController: UIViewController {
         }
     }
     
-    private func makeCellLayout() -> CellLayout {
-        var cellModels: [CellModel] = [
-            .textWithImage(text: peerMeta?.name ?? Strings.unknownWebsite, extraText: nil, imageURL: peerMeta?.iconURLString, image: nil),
-            .textWithImage(text: account.nameOrCroppedAddress(walletId: walletId), extraText: balance, imageURL: nil, image: account.image),
-            .textWithImage(text: chain.name, extraText: nil, imageURL: nil, image: Images.network)
-        ]
-        
+    private func makeStaticRows() -> StaticRows {
+        let peerCell = ImageWithLabelTableViewCell(style: .default, reuseIdentifier: nil)
+        peerCell.setup(text: peerMeta?.name ?? Strings.unknownWebsite, extraText: nil, imageURL: peerMeta?.iconURLString, image: nil)
+
+        let accountCell = ImageWithLabelTableViewCell(style: .default, reuseIdentifier: nil)
+        let networkCell = ImageWithLabelTableViewCell(style: .default, reuseIdentifier: nil)
+        networkCell.setup(text: chain.name, extraText: nil, imageURL: nil, image: Images.network)
+
+        var cells: [UITableViewCell] = [peerCell, accountCell, networkCell]
+
         let price = priceService.forNetwork(chain)
-        if let value = transaction.valueWithSymbol(chain: chain, price: price, withLabel: true) {
-            cellModels.append(.text(text: value, oneLine: false, pro: false))
-        }
-        
-        let feeRowsStart = cellModels.count
-        cellModels.append(contentsOf: feeCellModels(price: price))
-        let feeRows = feeRowsStart..<cellModels.count
-        
-        let sliderIndex: Int?
-        if chain.isEthMainnet {
-            sliderIndex = cellModels.count
-            cellModels.append(.gasPriceSlider)
-        } else {
-            sliderIndex = nil
-        }
-        
-        if let diplayDataInterpretation = transaction.diplayDataInterpretation {
-            cellModels.append(.text(text: diplayDataInterpretation, oneLine: false, pro: true))
-        }
-        
-        return CellLayout(
-            cellModels: cellModels,
-            feeRows: feeRows,
-            sliderIndex: sliderIndex
-        )
-    }
-    
-    private func updateDisplayedTransactionInfo(initially: Bool) {
-        if !initially, isGasSliderTracking {
-            needsTableReloadAfterGasSliderInteraction = true
-            okButton.isEnabled = canApproveTransaction
-            navigationItem.rightBarButtonItem?.isEnabled =
-                canOpenTransactionEditor
-            return
+        var valueCell: MultilineLabelTableViewCell?
+        if transaction.valueWithSymbol(chain: chain, price: price, withLabel: true) != nil {
+            let cell = MultilineLabelTableViewCell(style: .default, reuseIdentifier: nil)
+            valueCell = cell
+            cells.append(cell)
         }
 
-        let newCellLayout = makeCellLayout()
-        cellLayout = newCellLayout
-        sectionModels[0] = newCellLayout.cellModels
-        if !initially, tableView.numberOfSections > 0 {
+        let feeCells = transaction.feeSummaryLines(chain: chain, price: price).map { _ in
+            MultilineLabelTableViewCell(style: .default, reuseIdentifier: nil)
+        }
+        cells.append(contentsOf: feeCells)
+
+        var sliderCell: GasPriceSliderTableViewCell?
+        if chain.isEthMainnet {
+            let cell = GasPriceSliderTableViewCell(style: .default, reuseIdentifier: nil)
+            cell.setup(
+                value: nil,
+                isEnabled: false,
+                detail: Strings.calculating.withEllipsis,
+                delegate: self
+            )
+            sliderCell = cell
+            cells.append(cell)
+        }
+
+        var dataCell: MultilineLabelTableViewCell?
+        if transaction.diplayDataInterpretation != nil {
+            let cell = MultilineLabelTableViewCell(style: .default, reuseIdentifier: nil)
+            dataCell = cell
+            cells.append(cell)
+        }
+
+        return StaticRows(
+            cells: cells,
+            accountCell: accountCell,
+            valueCell: valueCell,
+            feeCells: feeCells,
+            sliderCell: sliderCell,
+            dataCell: dataCell
+        )
+    }
+
+    // The row set only changes when the fee mode switches the number of
+    // fee lines or a data interpretation arrives; both are rebuilt
+    // outside of slider drags.
+    private var rowStructureMatchesTransaction: Bool {
+        guard let staticRows else { return false }
+        let price = priceService.forNetwork(chain)
+        return staticRows.feeCells.count ==
+            transaction.feeSummaryLines(chain: chain, price: price).count &&
+            (staticRows.dataCell != nil) ==
+            (transaction.diplayDataInterpretation != nil)
+    }
+
+    private func updateDisplayedTransactionInfo(initially: Bool) {
+        // Never rebuild or reload mid-drag; the unconditional pass in
+        // sliderInteractionEnded catches up.
+        if !rowStructureMatchesTransaction, !isGasSliderTracking {
+            staticRows = makeStaticRows()
+            // Unconditional: the large-title header setup forces an
+            // early zero-row data load in viewDidLoad, so the initial
+            // build must invalidate that too — otherwise the stale row
+            // count makes the next height settle throw. Reloading a
+            // not-yet-loaded table is free.
             tableView.reloadData()
+        }
+        applyRowContent()
+        if !initially, !isGasSliderTracking,
+           tableView.numberOfSections > 0 {
+            settleRowHeights()
         }
         okButton.isEnabled = canApproveTransaction
         navigationItem.rightBarButtonItem?.isEnabled =
             canOpenTransactionEditor
+    }
+
+    private func applyRowContent() {
+        guard let staticRows else { return }
+        let price = priceService.forNetwork(chain)
+
+        staticRows.accountCell.setup(
+            text: account.nameOrCroppedAddress(walletId: walletId),
+            extraText: balance,
+            imageURL: nil,
+            image: account.image
+        )
+        if let valueCell = staticRows.valueCell,
+           let value = transaction.valueWithSymbol(chain: chain, price: price, withLabel: true) {
+            valueCell.setup(text: value, largeFont: true, oneLine: false, pro: false)
+        }
+        applyFeeRowContent(price: price)
+        if let dataCell = staticRows.dataCell,
+           let data = transaction.diplayDataInterpretation {
+            dataCell.setup(text: data, largeFont: true, oneLine: false, pro: true)
+        }
+        updateGasSliderCellIfNeeded()
+    }
+
+    private func applyFeeRowContent(price: Double?) {
+        guard let staticRows else { return }
+        let lines = transaction.feeSummaryLines(chain: chain, price: price)
+        guard lines.count == staticRows.feeCells.count else { return }
+        for (cell, line) in zip(staticRows.feeCells, lines) {
+            cell.setup(text: line, largeFont: true, oneLine: false, pro: false)
+        }
+    }
+
+    private func settleRowHeights() {
+        UIView.performWithoutAnimation {
+            tableView.beginUpdates()
+            tableView.endUpdates()
+        }
     }
 
     private var canApproveTransaction: Bool {
@@ -485,41 +545,11 @@ class ApproveTransactionViewController: UIViewController {
     }
     
     private func refreshFeeRows() {
-        guard let cellLayout else { return }
-        let price = priceService.forNetwork(chain)
-        let feeModels = feeCellModels(price: price)
-        guard feeModels.count == cellLayout.feeRows.count else {
-            updateDisplayedTransactionInfo(initially: false)
-            return
-        }
-
-        for (index, model) in zip(cellLayout.feeRows, feeModels) {
-            sectionModels[0][index] = model
-            updateVisibleTextCell(at: index, with: model)
-        }
-        
-        if tableView.numberOfSections > 0 {
-            UIView.performWithoutAnimation {
-                tableView.beginUpdates()
-                tableView.endUpdates()
-            }
-        }
+        applyFeeRowContent(price: priceService.forNetwork(chain))
         okButton.isEnabled = canApproveTransaction
         updateGasSliderCellIfNeeded()
     }
 
-    private func feeCellModels(price: Double?) -> [CellModel] {
-        transaction.feeSummaryLines(chain: chain, price: price).map {
-            .text(text: $0, oneLine: false, pro: false)
-        }
-    }
-    
-    private func updateVisibleTextCell(at row: Int, with model: CellModel) {
-        guard case let .text(text, oneLine, pro) = model,
-              let cell = tableView.cellForRow(at: IndexPath(row: row, section: 0)) as? MultilineLabelTableViewCell else { return }
-        cell.setup(text: text, largeFont: true, oneLine: oneLine, pro: pro)
-    }
-    
     private var isSpeedConfigurationEnabled: Bool {
         gasSpeedConfiguration.isSpeedSelectionAvailable(
             for: transaction,
@@ -549,12 +579,7 @@ class ApproveTransactionViewController: UIViewController {
     }
 
     private func updateGasSliderCellIfNeeded() {
-        guard let sliderIndex = cellLayout?.sliderIndex,
-              let cell = tableView.cellForRow(
-                at: IndexPath(row: sliderIndex, section: 0)
-              ) as? GasPriceSliderTableViewCell else {
-            return
-        }
+        guard let cell = staticRows?.sliderCell else { return }
 
         if isSpeedConfigurationEnabled {
             let value = gasSpeedConfiguration.sliderPosition(
@@ -573,6 +598,13 @@ class ApproveTransactionViewController: UIViewController {
                 isEnabled: false,
                 detail: Strings.calculating.withEllipsis
             )
+            if isGasSliderTracking {
+                // Disabling the slider mid-gesture may swallow the
+                // touch-cancel; end the interaction explicitly so
+                // reload deferral cannot stick. A later real end is
+                // a no-op.
+                sliderInteractionEnded()
+            }
         }
     }
 
@@ -629,43 +661,15 @@ extension ApproveTransactionViewController: UITableViewDelegate {
 extension ApproveTransactionViewController: UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        switch sectionModels[indexPath.section][indexPath.row] {
-        case let .text(text, oneLine, pro):
-            let cell = tableView.dequeueReusableCellOfType(MultilineLabelTableViewCell.self, for: indexPath)
-            cell.setup(text: text, largeFont: true, oneLine: oneLine, pro: pro)
-            return cell
-        case let .textWithImage(text: text, extraText: extraText, imageURL: imageURL, image: image):
-            let cell = tableView.dequeueReusableCellOfType(ImageWithLabelTableViewCell.self, for: indexPath)
-            cell.setup(text: text, extraText: extraText, imageURL: imageURL, image: image)
-            return cell
-        case .gasPriceSlider:
-            let cell = tableView.dequeueReusableCellOfType(GasPriceSliderTableViewCell.self, for: indexPath)
-            var value: Double?
-            let isEnabled = isSpeedConfigurationEnabled
-            if isEnabled {
-                value = gasSpeedConfiguration.sliderPosition(
-                    for: transaction
-                )
-            }
-            cell.setup(
-                value: value,
-                isEnabled: isEnabled,
-                detail: value == nil
-                    ? Strings.calculating.withEllipsis
-                    : speedDetail(),
-                delegate: self
-            )
-            return cell
-        }
-        
+        staticRows?.cells[indexPath.row] ?? UITableViewCell()
     }
-    
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        sectionModels[section].count
+        staticRows?.cells.count ?? 0
     }
-    
+
     func numberOfSections(in tableView: UITableView) -> Int {
-        return sectionModels.count
+        return 1
     }
     
 }
@@ -673,13 +677,17 @@ extension ApproveTransactionViewController: UITableViewDataSource {
 extension ApproveTransactionViewController: GasPriceSliderDelegate {
 
     func sliderInteractionStarted(value: Double) {
+        // The tracking flag mirrors the physical gesture, not slider
+        // eligibility: reload deferral and thumb-write suppression key
+        // off it, and eligibility can change mid-drag (an estimate can
+        // land after touchdown).
+        isGasSliderTracking = true
+        gasSliderInteractionStartValue = Float(value)
+        gasSliderInteractionDidMove = false
         guard approvalSnapshot.allowsMutation,
               isSpeedConfigurationEnabled else {
             return
         }
-        isGasSliderTracking = true
-        gasSliderInteractionStartValue = Float(value)
-        gasSliderInteractionDidMove = false
         gasSpeedConfiguration.markGasSliderInteraction()
         approvalCoordinator.beginSliderInteraction()
     }
@@ -694,10 +702,9 @@ extension ApproveTransactionViewController: GasPriceSliderDelegate {
             )
         gasSliderInteractionStartValue = nil
         gasSliderInteractionDidMove = false
-        if needsTableReloadAfterGasSliderInteraction {
-            needsTableReloadAfterGasSliderInteraction = false
-            updateDisplayedTransactionInfo(initially: false)
-        }
+        // One unconditional pass at drag end rebuilds the row set if it
+        // changed and settles row heights after the in-place writes.
+        updateDisplayedTransactionInfo(initially: false)
         if didInstallPendingQuote {
             updateSpeedConfigurationState()
         }
@@ -717,6 +724,9 @@ extension ApproveTransactionViewController: GasPriceSliderDelegate {
         }
         gasSliderInteractionDidMove = true
         gasSpeedConfiguration.markGasSliderInteraction()
+        if isGasSliderTracking {
+            approvalCoordinator.beginSliderInteraction()
+        }
         let didChangeFee = approvalCoordinator.setFeeForSpeed(
             value: value,
             inRelationTo: gasInfo
