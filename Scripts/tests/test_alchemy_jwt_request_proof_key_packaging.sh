@@ -33,23 +33,32 @@ other_fingerprint=${other_fingerprint%% *}
 fixture_scripts_directory="$test_root/fixture/Scripts"
 /bin/mkdir -p "$fixture_scripts_directory"
 for fixture_script in \
-    validate_alchemy_jwt_request_proof_key_file.sh \
+    validate_alchemy_jwt_request_proof_key.sh \
     bundle_alchemy_jwt_request_proof_key.sh \
     assert_bundled_alchemy_jwt_request_proof_key.sh \
-    alchemy_jwt_request_proof_key_common.sh
+    alchemy_jwt_request_proof_key_common.sh \
+    alchemy_login_keychain_supervisor.pl
 do
     /bin/cp \
         "$repository_directory/Scripts/$fixture_script" \
         "$fixture_scripts_directory/$fixture_script"
 done
+# Tests that intentionally select an unavailable Keychain source must never
+# contact the developer's real login Keychain now that HOME is not trusted.
+printf '%s\n' \
+    '' \
+    'alchemy_jwt_request_proof_key_run_keychain_supervisor() {' \
+    '    return 1' \
+    '}' \
+    >> "$fixture_scripts_directory/alchemy_jwt_request_proof_key_common.sh"
 /bin/chmod 0755 \
-    "$fixture_scripts_directory/validate_alchemy_jwt_request_proof_key_file.sh" \
+    "$fixture_scripts_directory/validate_alchemy_jwt_request_proof_key.sh" \
     "$fixture_scripts_directory/bundle_alchemy_jwt_request_proof_key.sh" \
     "$fixture_scripts_directory/assert_bundled_alchemy_jwt_request_proof_key.sh"
 printf '%s\n' "$valid_fingerprint" \
     > "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
 
-validator="$fixture_scripts_directory/validate_alchemy_jwt_request_proof_key_file.sh"
+validator="$fixture_scripts_directory/validate_alchemy_jwt_request_proof_key.sh"
 bundler="$fixture_scripts_directory/bundle_alchemy_jwt_request_proof_key.sh"
 artifact_validator="$fixture_scripts_directory/assert_bundled_alchemy_jwt_request_proof_key.sh"
 last_stdout=""
@@ -73,15 +82,387 @@ assert_file_contents() {
     /usr/bin/cmp -s "$expected_file" "$path" || fail "$description"
 }
 
+keychain_supervisor="$fixture_scripts_directory/alchemy_login_keychain_supervisor.pl"
+supervisor_fake="$test_root/keychain-supervisor-fake.pl"
+printf '%s\n' \
+    '#!/usr/bin/perl' \
+    'use strict;' \
+    'use warnings;' \
+    'my $mode = shift @ARGV // exit 64;' \
+    'if ($mode eq "success") {' \
+    '    my $log = shift @ARGV // exit 64;' \
+    '    keys(%ENV) == 0 or exit 65;' \
+    '    open(my $handle, ">", $log) or exit 66;' \
+    '    print {$handle} join("\n", @ARGV), "\n" or exit 67;' \
+    '    close($handle) or exit 68;' \
+    '    print STDOUT "keychain-secret\n" or exit 69;' \
+    '    exit 0;' \
+    '}' \
+    'if ($mode eq "fd-check") {' \
+    '    open(my $inherited_handle, ">&=9") and exit 76;' \
+    '    print STDOUT "fd-closed\n" or exit 77;' \
+    '    exit 0;' \
+    '}' \
+    'if ($mode eq "nonzero") {' \
+    '    print STDOUT "must-not-escape\n";' \
+    '    exit 44;' \
+    '}' \
+    'if ($mode eq "missing-lf") {' \
+    '    print STDOUT "keychain-secret";' \
+    '    exit 0;' \
+    '}' \
+    'if ($mode eq "nul") {' \
+    '    print STDOUT "keychain\0secret\n";' \
+    '    exit 0;' \
+    '}' \
+    'if ($mode eq "oversized") {' \
+    '    print STDOUT(("A" x 65) . "\n");' \
+    '    exit 0;' \
+    '}' \
+    'if ($mode eq "empty") {' \
+    '    exit 0;' \
+    '}' \
+    'my $pid_file = shift @ARGV // exit 64;' \
+    'open(my $pid_handle, ">", $pid_file) or exit 70;' \
+    'print {$pid_handle} "$$\n" or exit 71;' \
+    'close($pid_handle) or exit 72;' \
+    'if ($mode eq "hang-term") {' \
+    '    my $marker = shift @ARGV // exit 64;' \
+    '    $SIG{TERM} = sub {' \
+    '        open(my $marker_handle, ">", $marker) or exit 73;' \
+    '        print {$marker_handle} "term\n" or exit 74;' \
+    '        close($marker_handle) or exit 75;' \
+    '        exit 0;' \
+    '    };' \
+    '} elsif ($mode eq "hang-ignore") {' \
+    '    $SIG{TERM} = "IGNORE";' \
+    '} elsif ($mode eq "close-output") {' \
+    '    close(STDOUT);' \
+    '} else {' \
+    '    exit 64;' \
+    '}' \
+    'while (1) {' \
+    '    select(undef, undef, undef, 1);' \
+    '}' \
+    > "$supervisor_fake"
+
+supervisor_success_stdout="$logs_directory/supervisor-success.stdout"
+supervisor_success_stderr="$logs_directory/supervisor-success.stderr"
+supervisor_success_arguments="$logs_directory/supervisor-success.arguments"
+/usr/bin/env -i /usr/bin/perl "$keychain_supervisor" \
+    --timeout-seconds 2 \
+    --term-grace-seconds 0.2 \
+    --max-output-bytes 64 \
+    -- \
+    /usr/bin/perl "$supervisor_fake" \
+    success "$supervisor_success_arguments" alpha "two words" \
+    > "$supervisor_success_stdout" \
+    2> "$supervisor_success_stderr" ||
+    fail "the Keychain supervisor rejected valid output"
+printf '%s\n' "keychain-secret" > "$test_root/expected"
+/usr/bin/cmp -s "$test_root/expected" "$supervisor_success_stdout" ||
+    fail "the Keychain supervisor changed valid output bytes"
+printf '%s\n' alpha "two words" > "$test_root/expected"
+/usr/bin/cmp -s "$test_root/expected" "$supervisor_success_arguments" ||
+    fail "the Keychain supervisor changed child arguments"
+assert_empty_file \
+    "$supervisor_success_stderr" \
+    "the Keychain supervisor wrote a success diagnostic"
+
+supervisor_fd_stdout="$logs_directory/supervisor-fd.stdout"
+supervisor_fd_stderr="$logs_directory/supervisor-fd.stderr"
+/usr/bin/env -i /usr/bin/perl "$keychain_supervisor" \
+    --timeout-seconds 2 \
+    --term-grace-seconds 0.2 \
+    --max-output-bytes 64 \
+    -- \
+    /usr/bin/perl "$supervisor_fake" fd-check \
+    9> "$test_root/supervisor-inherited-fd" \
+    > "$supervisor_fd_stdout" \
+    2> "$supervisor_fd_stderr" ||
+    fail "the Keychain supervisor did not close an inherited descriptor"
+printf '%s\n' "fd-closed" > "$test_root/expected"
+/usr/bin/cmp -s "$test_root/expected" "$supervisor_fd_stdout" ||
+    fail "the Keychain supervisor descriptor test changed valid output"
+assert_empty_file \
+    "$supervisor_fd_stderr" \
+    "the Keychain supervisor descriptor test wrote a diagnostic"
+
+expect_supervisor_failure() {
+    supervisor_case_name=$1
+    supervisor_case_timeout=$2
+    supervisor_case_grace=$3
+    supervisor_case_maximum=$4
+    shift 4
+    supervisor_case_stdout="$logs_directory/$supervisor_case_name.stdout"
+    supervisor_case_stderr="$logs_directory/$supervisor_case_name.stderr"
+
+    set +e
+    /usr/bin/env -i /usr/bin/perl "$keychain_supervisor" \
+        --timeout-seconds "$supervisor_case_timeout" \
+        --term-grace-seconds "$supervisor_case_grace" \
+        --max-output-bytes "$supervisor_case_maximum" \
+        -- \
+        /usr/bin/perl "$supervisor_fake" "$@" \
+        > "$supervisor_case_stdout" \
+        2> "$supervisor_case_stderr"
+    supervisor_case_status=$?
+    set -e
+
+    [ "$supervisor_case_status" -ne 0 ] ||
+        fail "$supervisor_case_name unexpectedly succeeded"
+    assert_empty_file \
+        "$supervisor_case_stdout" \
+        "$supervisor_case_name exposed rejected child output"
+    assert_empty_file \
+        "$supervisor_case_stderr" \
+        "$supervisor_case_name wrote a failure diagnostic"
+}
+
+expect_supervisor_failure supervisor-child-failure 2 0.2 64 nonzero
+expect_supervisor_failure supervisor-missing-lf 2 0.2 64 missing-lf
+expect_supervisor_failure supervisor-nul 2 0.2 64 nul
+expect_supervisor_failure supervisor-oversized 2 0.2 64 oversized
+expect_supervisor_failure supervisor-empty 2 0.2 64 empty
+
+supervisor_term_pid="$logs_directory/supervisor-term.pid"
+supervisor_term_marker="$logs_directory/supervisor-term.marker"
+expect_supervisor_failure \
+    supervisor-term-timeout \
+    1 \
+    0.2 \
+    64 \
+    hang-term \
+    "$supervisor_term_pid" \
+    "$supervisor_term_marker"
+[ -s "$supervisor_term_marker" ] ||
+    fail "the Keychain supervisor did not send SIGTERM at its deadline"
+supervisor_child_pid=$(/bin/cat "$supervisor_term_pid")
+if /bin/kill -0 "$supervisor_child_pid" 2>/dev/null; then
+    fail "the Keychain supervisor did not reap its SIGTERM child"
+fi
+
+supervisor_kill_pid="$logs_directory/supervisor-kill.pid"
+expect_supervisor_failure \
+    supervisor-kill-timeout \
+    1 \
+    0.2 \
+    64 \
+    hang-ignore \
+    "$supervisor_kill_pid"
+supervisor_child_pid=$(/bin/cat "$supervisor_kill_pid")
+if /bin/kill -0 "$supervisor_child_pid" 2>/dev/null; then
+    fail "the Keychain supervisor did not reap its SIGKILL child"
+fi
+
+supervisor_closed_output_pid="$logs_directory/supervisor-closed-output.pid"
+expect_supervisor_failure \
+    supervisor-closed-output-timeout \
+    1 \
+    0.2 \
+    64 \
+    close-output \
+    "$supervisor_closed_output_pid"
+supervisor_child_pid=$(/bin/cat "$supervisor_closed_output_pid")
+if /bin/kill -0 "$supervisor_child_pid" 2>/dev/null; then
+    fail "a child that closed stdout escaped the Keychain deadline"
+fi
+
+supervisor_interrupt_pid="$logs_directory/supervisor-interrupt-child.pid"
+supervisor_interrupt_stdout="$logs_directory/supervisor-interrupt.stdout"
+supervisor_interrupt_stderr="$logs_directory/supervisor-interrupt.stderr"
+/usr/bin/env -i /usr/bin/perl "$keychain_supervisor" \
+    --timeout-seconds 5 \
+    --term-grace-seconds 0.2 \
+    --max-output-bytes 64 \
+    -- \
+    /usr/bin/perl "$supervisor_fake" \
+    hang-ignore "$supervisor_interrupt_pid" \
+    > "$supervisor_interrupt_stdout" \
+    2> "$supervisor_interrupt_stderr" &
+supervisor_process_pid=$!
+supervisor_wait_attempt=0
+while [ ! -s "$supervisor_interrupt_pid" ] &&
+    [ "$supervisor_wait_attempt" -lt 100 ]
+do
+    /usr/bin/perl -e 'select(undef, undef, undef, 0.01)'
+    supervisor_wait_attempt=$((supervisor_wait_attempt + 1))
+done
+[ -s "$supervisor_interrupt_pid" ] ||
+    fail "the Keychain supervisor interruption child did not start"
+/bin/kill -TERM "$supervisor_process_pid"
+set +e
+wait "$supervisor_process_pid"
+supervisor_interrupt_status=$?
+set -e
+[ "$supervisor_interrupt_status" -ne 0 ] ||
+    fail "an interrupted Keychain supervisor unexpectedly succeeded"
+assert_empty_file \
+    "$supervisor_interrupt_stdout" \
+    "an interrupted Keychain supervisor exposed child output"
+assert_empty_file \
+    "$supervisor_interrupt_stderr" \
+    "an interrupted Keychain supervisor wrote a diagnostic"
+supervisor_child_pid=$(/bin/cat "$supervisor_interrupt_pid")
+if /bin/kill -0 "$supervisor_child_pid" 2>/dev/null; then
+    fail "an interrupted Keychain supervisor did not reap its child"
+fi
+
+set +e
+/usr/bin/env -i /usr/bin/perl "$keychain_supervisor" \
+    --timeout-seconds 0 \
+    --term-grace-seconds 0.2 \
+    --max-output-bytes 64 \
+    -- \
+    /bin/true \
+    > "$logs_directory/supervisor-invalid.stdout" \
+    2> "$logs_directory/supervisor-invalid.stderr"
+supervisor_invalid_status=$?
+set -e
+[ "$supervisor_invalid_status" -ne 0 ] ||
+    fail "the Keychain supervisor accepted an invalid deadline"
+assert_empty_file \
+    "$logs_directory/supervisor-invalid.stdout" \
+    "an invalid Keychain supervisor invocation wrote to stdout"
+assert_empty_file \
+    "$logs_directory/supervisor-invalid.stderr" \
+    "an invalid Keychain supervisor invocation wrote to stderr"
+
+identity_arguments="$logs_directory/keychain-identity.arguments"
+(
+    fail() {
+        printf '%s\n' "$1" >&2
+        exit 1
+    }
+
+    USER=stale-user
+    HOME=/Users/stale-home
+    export USER HOME
+    . "$fixture_scripts_directory/alchemy_jwt_request_proof_key_common.sh"
+    alchemy_jwt_request_proof_key_run_id() {
+        [ "$1" = "$keychain_supervisor" ] || return 1
+        case "$2:$3${4:+:$4}" in
+            32:-u)
+                printf '%s\n' 501
+                ;;
+            257:-un)
+                printf '%s\n' effective-user
+                ;;
+            4097:-P:effective-user)
+                printf '%s\n' \
+                    "effective-user:********:501:20::0:0:Effective User:/Users/effective home:/bin/zsh"
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    }
+    alchemy_jwt_request_proof_key_run_keychain_supervisor() {
+        printf '%s\n' "$@" > "$identity_arguments"
+        printf '%s\n' "$valid_key"
+    }
+
+    load_login_keychain_secret \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY \
+        "$keychain_supervisor"
+    [ "$LOGIN_KEYCHAIN_SECRET_VALUE" = "$valid_key" ] ||
+        fail "the effective-user Keychain lookup changed the password"
+    [ "$USER" = stale-user ] && [ "$HOME" = /Users/stale-home ] ||
+        fail "the effective-user Keychain lookup changed the caller environment"
+) || fail "the effective-user Keychain lookup failed"
+printf '%s\n' \
+    "$keychain_supervisor" \
+    --timeout-seconds \
+    30 \
+    --term-grace-seconds \
+    2 \
+    --max-output-bytes \
+    44 \
+    -- \
+    /usr/bin/security \
+    find-generic-password \
+    -a \
+    effective-user \
+    -s \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY \
+    -w \
+    "/Users/effective home/Library/Keychains/login.keychain-db" \
+    > "$test_root/expected"
+/usr/bin/cmp -s "$test_root/expected" "$identity_arguments" ||
+    fail "ambient USER or HOME changed the effective-user Keychain lookup"
+
+for identity_case in uid-mismatch extra-field relative-home
+do
+    case "$identity_case" in
+        uid-mismatch)
+            identity_record="effective-user:********:502:20::0:0:Effective User:/Users/effective:/bin/zsh"
+            ;;
+        extra-field)
+            identity_record="effective-user:********:501:20::0:0:Effective User:/Users/attacker:actual-home:/bin/zsh"
+            ;;
+        relative-home)
+            identity_record="effective-user:********:501:20::0:0:Effective User:Users/effective:/bin/zsh"
+            ;;
+    esac
+    identity_supervisor_called="$logs_directory/$identity_case.supervisor-called"
+    set +e
+    (
+        fail() {
+            printf '%s\n' "$1" >&2
+            exit 1
+        }
+
+        . "$fixture_scripts_directory/alchemy_jwt_request_proof_key_common.sh"
+        alchemy_jwt_request_proof_key_run_id() {
+            [ "$1" = "$keychain_supervisor" ] || return 1
+            case "$2:$3${4:+:$4}" in
+                32:-u)
+                    printf '%s\n' 501
+                    ;;
+                257:-un)
+                    printf '%s\n' effective-user
+                    ;;
+                4097:-P:effective-user)
+                    printf '%s\n' "$identity_record"
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+        }
+        alchemy_jwt_request_proof_key_run_keychain_supervisor() {
+            printf '%s\n' called > "$identity_supervisor_called"
+            printf '%s\n' "$valid_key"
+        }
+        load_login_keychain_secret \
+            ALCHEMY_JWT_REQUEST_PROOF_KEY \
+            "$keychain_supervisor"
+    ) > "$logs_directory/$identity_case.stdout" \
+        2> "$logs_directory/$identity_case.stderr"
+    identity_status=$?
+    set -e
+    [ "$identity_status" -ne 0 ] ||
+        fail "$identity_case account record unexpectedly succeeded"
+    [ ! -e "$identity_supervisor_called" ] ||
+        fail "$identity_case account record reached the Keychain supervisor"
+    assert_empty_file \
+        "$logs_directory/$identity_case.stdout" \
+        "$identity_case account record wrote to stdout"
+    [ -s "$logs_directory/$identity_case.stderr" ] ||
+        fail "$identity_case account record did not report an error"
+done
+
 invoke_validator() {
     name=$1
     expected_result=$2
-    key_file=$3
+    key_value=$3
     last_stdout="$logs_directory/$name.stdout"
     last_stderr="$logs_directory/$name.stderr"
 
     set +e
-    "$validator" "$key_file" > "$last_stdout" 2> "$last_stderr"
+    HOME="$test_root/no-login-keychain" \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY="$key_value" \
+        "$validator" > "$last_stdout" 2> "$last_stderr"
     status=$?
     set -e
 
@@ -104,13 +485,15 @@ invoke_validator() {
 
 invoke_traced_validator() {
     name=$1
-    key_file=$2
+    key_value=$2
     shift 2
     last_stdout="$logs_directory/$name.stdout"
     last_stderr="$logs_directory/$name.stderr"
 
     set +e
-    "$@" "$validator" "$key_file" > "$last_stdout" 2> "$last_stderr"
+    HOME="$test_root/no-login-keychain" \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY="$key_value" \
+        "$@" "$validator" > "$last_stdout" 2> "$last_stderr"
     traced_status=$?
     set -e
 
@@ -133,7 +516,7 @@ invoke_bundler() {
     target_build_dir=$4
     resources_path=$5
     output_path=$6
-    key_file=$7
+    key_value=$7
     last_stdout="$logs_directory/$name.stdout"
     last_stderr="$logs_directory/$name.stderr"
 
@@ -143,7 +526,8 @@ invoke_bundler() {
         UNLOCALIZED_RESOURCES_FOLDER_PATH="$resources_path" \
         SCRIPT_OUTPUT_FILE_COUNT=1 \
         SCRIPT_OUTPUT_FILE_0="$output_path" \
-        ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$key_file" \
+        HOME="$test_root/no-login-keychain" \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY="$key_value" \
         "$bundler" > "$last_stdout" 2> "$last_stderr"
     status=$?
     set -e
@@ -170,12 +554,13 @@ invoke_artifact_validator() {
     expected_result=$2
     platform=$3
     artifact=$4
-    key_file=$5
+    key_value=$5
     last_stdout="$logs_directory/$name.stdout"
     last_stderr="$logs_directory/$name.stderr"
 
     set +e
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$key_file" \
+    HOME="$test_root/no-login-keychain" \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY="$key_value" \
         "$artifact_validator" "$platform" "$artifact" \
         > "$last_stdout" 2> "$last_stderr"
     status=$?
@@ -202,155 +587,251 @@ for executable in "$validator" "$bundler" "$artifact_validator"; do
     [ -x "$executable" ] || fail "$executable is not executable"
 done
 
-key_directory="$test_root/external keys with spaces"
-/bin/mkdir -p "$key_directory"
-/bin/chmod 0700 "$key_directory"
-valid_key_file="$key_directory/request proof key"
-printf '%s' "$valid_key" > "$valid_key_file"
-/bin/chmod 0600 "$valid_key_file"
-invoke_validator valid-key success "$valid_key_file"
+invoke_validator valid-environment-key success "$valid_key"
 invoke_traced_validator \
     explicit-xtrace-does-not-leak \
-    "$valid_key_file" \
+    "$valid_key" \
     /bin/sh -x
 invoke_traced_validator \
     inherited-xtrace-does-not-leak \
-    "$valid_key_file" \
+    "$valid_key" \
     /usr/bin/env SHELLOPTS=xtrace /bin/sh
 
-newline_key_file="$key_directory/request proof key with newline"
-printf '%s\n' "$valid_key" > "$newline_key_file"
-/bin/chmod 0600 "$newline_key_file"
-invoke_validator valid-key-with-newline success "$newline_key_file"
-
-bom_key_file="$key_directory/BOM key"
-printf '\357\273\277%s' "$valid_key" > "$bom_key_file"
-/bin/chmod 0600 "$bom_key_file"
-invoke_validator bom-key failure "$bom_key_file"
-
-crlf_key_file="$key_directory/CRLF key"
-printf '%s\r\n' "$valid_key" > "$crlf_key_file"
-/bin/chmod 0600 "$crlf_key_file"
-invoke_validator crlf-key failure "$crlf_key_file"
-
-wrong_mode_key="$key_directory/wrong mode"
-printf '%s' "$valid_key" > "$wrong_mode_key"
-/bin/chmod 0644 "$wrong_mode_key"
-invoke_validator wrong-mode failure "$wrong_mode_key"
-
-invalid_character_key="$key_directory/invalid character"
-printf '%s' "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA*" \
-    > "$invalid_character_key"
-/bin/chmod 0600 "$invalid_character_key"
-invoke_validator invalid-character failure "$invalid_character_key"
-
-noncanonical_key="$key_directory/noncanonical"
-printf '%s' "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB" \
-    > "$noncanonical_key"
-/bin/chmod 0600 "$noncanonical_key"
-invoke_validator noncanonical-base64url failure "$noncanonical_key"
-
-two_line_key="$key_directory/two lines"
-printf '%s\n%s\n' "$valid_key" "$valid_key" > "$two_line_key"
-/bin/chmod 0600 "$two_line_key"
-invoke_validator multiple-lines failure "$two_line_key"
+invoke_validator newline-key failure "${valid_key}
+"
+invoke_validator bom-key failure "﻿${valid_key}"
+crlf_key_with_sentinel=$(printf '%s\r\n.' "$valid_key")
+crlf_key=${crlf_key_with_sentinel%?}
+invoke_validator crlf-key failure "$crlf_key"
+unset crlf_key crlf_key_with_sentinel
+invoke_validator invalid-character failure \
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA*"
+invoke_validator noncanonical-base64url failure \
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB"
+invoke_validator missing-environment-and-keychain failure ""
 
 printf '%s\n' "$other_fingerprint" \
     > "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
-invoke_validator wrong-fingerprint failure "$valid_key_file"
+invoke_validator wrong-fingerprint failure "$valid_key"
 printf '%s\n' "$valid_fingerprint" \
     > "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
 
 printf '%s\r\n' "$valid_fingerprint" \
     > "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
-invoke_validator malformed-fingerprint failure "$valid_key_file"
+invoke_validator malformed-fingerprint failure "$valid_key"
 printf '%s\n' "$valid_fingerprint" \
     > "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
 
 /bin/mv \
     "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256" \
     "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256.saved"
-invoke_validator missing-fingerprint failure "$valid_key_file"
+invoke_validator missing-fingerprint failure "$valid_key"
 /bin/mv \
     "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256.saved" \
     "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
 
-replacement_key_file="$key_directory/replacement key"
-printf '%s' "$other_key" > "$replacement_key_file"
-/bin/chmod 0600 "$replacement_key_file"
-invoke_validator valid-but-unpinned-replacement failure "$replacement_key_file"
+invoke_validator valid-but-unpinned-replacement failure "$other_key"
 
+(
+    fail() {
+        exit 1
+    }
+
+    # A value assigned after sourcing wins over the captured environment even
+    # when the captured value is non-empty and otherwise valid.
+    ALCHEMY_JWT_REQUEST_PROOF_KEY=$other_key
+    export ALCHEMY_JWT_REQUEST_PROOF_KEY
+    . "$fixture_scripts_directory/alchemy_jwt_request_proof_key_common.sh"
+    ALCHEMY_JWT_REQUEST_PROOF_KEY=$valid_key
+    load_alchemy_jwt_request_proof_key \
+        "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
+    [ "$ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE" = "$valid_key" ] ||
+        fail "a post-source request-proof assignment did not take precedence"
+) || fail "post-source request-proof precedence failed"
+
+(
+    fail() {
+        exit 1
+    }
+
+    . "$fixture_scripts_directory/alchemy_jwt_request_proof_key_common.sh"
+    ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE=$other_key
+    ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT=bad
+    export ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT
+    ALCHEMY_JWT_REQUEST_PROOF_KEY=$valid_key
+    load_alchemy_jwt_request_proof_key \
+        "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
+    [ "$ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE" = "$valid_key" ] ||
+        fail "an unvalidated private cache overrode a post-source public assignment"
+) || fail "unvalidated request-proof cache precedence failed"
+
+for post_source_value in "" too-short
+do
+    case "$post_source_value" in
+        "")
+            post_source_expected_error="is unavailable in the environment and login Keychain"
+            ;;
+        *)
+            post_source_expected_error="must contain exactly 43 characters"
+            ;;
+    esac
+    set +e
+    (
+        fail() {
+            printf '%s\n' "$1" >&2
+            exit 1
+        }
+
+        HOME="$test_root/no-login-keychain"
+        ALCHEMY_JWT_REQUEST_PROOF_KEY=$valid_key
+        export HOME ALCHEMY_JWT_REQUEST_PROOF_KEY
+        . "$fixture_scripts_directory/alchemy_jwt_request_proof_key_common.sh"
+        ALCHEMY_JWT_REQUEST_PROOF_KEY=$post_source_value
+        load_alchemy_jwt_request_proof_key \
+            "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
+    ) > "$logs_directory/post-source-selection.stdout" \
+        2> "$logs_directory/post-source-selection.stderr"
+    post_source_selection_status=$?
+    set -e
+    [ "$post_source_selection_status" -ne 0 ] ||
+        fail "an empty or malformed post-source assignment fell back to the captured key"
+    /usr/bin/grep -F "$post_source_expected_error" \
+        "$logs_directory/post-source-selection.stderr" >/dev/null ||
+        fail "post-source selection did not fail through the selected credential source"
+done
+unset post_source_value \
+    post_source_expected_error \
+    post_source_selection_status
+
+set +e
+(
+    fail() {
+        printf '%s\n' "$1" >&2
+        exit 1
+    }
+
+    . "$fixture_scripts_directory/alchemy_jwt_request_proof_key_common.sh"
+    ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE=too-short
+    ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT=bad
+    _alchemy_jwt_request_proof_key_cache_valid=1
+    export ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT \
+        _alchemy_jwt_request_proof_key_cache_valid
+    load_alchemy_jwt_request_proof_key \
+        "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
+) >"$logs_directory/post-source-cache.stdout" \
+    2>"$logs_directory/post-source-cache.stderr"
+post_source_cache_status=$?
+set -e
+[ "$post_source_cache_status" -ne 0 ] ||
+    fail "a hostile post-source request-proof cache bypassed validation"
+/usr/bin/grep -F "must contain exactly 43 characters" \
+    "$logs_directory/post-source-cache.stderr" >/dev/null ||
+    fail "a hostile post-source request-proof cache did not fail validation"
+unset post_source_cache_status
+
+preload_export_probe="$logs_directory/hostile-preload-export-environment.txt"
 export_probe="$logs_directory/hostile-export-environment.txt"
+hostile_trace_probe="$logs_directory/hostile-export-xtrace.txt"
 (
     fail() {
         exit 1
     }
     ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE=preexisting
-    alchemy_snapshot_with_sentinel=preexisting
+    ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT=preexisting
+    _alchemy_jwt_request_proof_key_cache_valid=preexisting
+    ALCHEMY_JWT_REQUEST_PROOF_KEY=$valid_key
+    _alchemy_jwt_request_proof_key_captured_environment_value=preexisting
+    LOGIN_KEYCHAIN_SECRET_VALUE=preexisting
+    login_keychain_output_with_sentinel=preexisting
+    login_keychain_output=preexisting
     alchemy_key_snapshot=preexisting
+    alchemy_key_public_assignment_present=preexisting
     alchemy_key_prefix=preexisting
     alchemy_final_character=preexisting
     resource_with_sentinel=preexisting
     bundled_key=preexisting
     export ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE \
-        alchemy_snapshot_with_sentinel \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT \
+        _alchemy_jwt_request_proof_key_cache_valid \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY \
+        _alchemy_jwt_request_proof_key_captured_environment_value \
+        LOGIN_KEYCHAIN_SECRET_VALUE \
+        login_keychain_output_with_sentinel \
+        login_keychain_output \
         alchemy_key_snapshot \
+        alchemy_key_public_assignment_present \
         alchemy_key_prefix \
         alchemy_final_character \
         resource_with_sentinel \
         bundled_key
+    unset LC_ALL
+    set -a
+    set -x
     . "$fixture_scripts_directory/alchemy_jwt_request_proof_key_common.sh"
+    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY+x}" != x ] ||
+        fail "the source request-proof key remained public"
+    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE+x}" != x ] ||
+        fail "a hostile request-proof cache survived source bootstrap"
+    [ "${LOGIN_KEYCHAIN_SECRET_VALUE+x}" != x ] ||
+        fail "a hostile Keychain cache survived source bootstrap"
+    /usr/bin/env > "$preload_export_probe"
     load_alchemy_jwt_request_proof_key \
-        "$valid_key_file" \
         "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
+    [ "${LC_ALL+x}" != x ] ||
+        fail "the request-proof loader changed the caller locale"
+
+    cached_request_proof_key=$ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE
+    export ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE \
+        ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT
+    ALCHEMY_JWT_REQUEST_PROOF_KEY=$other_key
+    export ALCHEMY_JWT_REQUEST_PROOF_KEY
+    load_alchemy_jwt_request_proof_key \
+        "$fixture_scripts_directory/alchemy_jwt_request_proof_key.sha256"
+    [ "$ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE" = "$cached_request_proof_key" ] ||
+        fail "a cached request-proof key was unexpectedly replaced"
+    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY+x}" != x ] ||
+        fail "a cached request-proof reload did not scrub the public key"
+    unset cached_request_proof_key
     /usr/bin/env > "$export_probe"
-)
-if /usr/bin/grep -F "$valid_key" "$export_probe" >/dev/null 2>&1; then
+) 2> "$hostile_trace_probe"
+if /usr/bin/grep -F "$valid_key" \
+    "$preload_export_probe" "$export_probe" "$hostile_trace_probe" \
+    >/dev/null 2>&1
+then
     fail "the request-proof key was inherited by a child process"
+fi
+if /usr/bin/grep -F "$other_key" "$hostile_trace_probe" >/dev/null 2>&1; then
+    fail "a cached request-proof reload exposed its public assignment through xtrace"
 fi
 for key_variable in \
     ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE \
-    alchemy_snapshot_with_sentinel \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT \
+    _alchemy_jwt_request_proof_key_cache_valid \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY \
+    _alchemy_jwt_request_proof_key_captured_environment_value \
+    LOGIN_KEYCHAIN_SECRET_VALUE \
+    login_keychain_output_with_sentinel \
+    login_keychain_output \
     alchemy_key_snapshot \
+    alchemy_key_public_assignment_present \
     alchemy_key_prefix \
-    alchemy_final_character
+    alchemy_final_character \
+    resource_with_sentinel \
+    bundled_key
 do
-    if /usr/bin/grep -E "^${key_variable}=" "$export_probe" >/dev/null 2>&1; then
+    if /usr/bin/grep -E "^${key_variable}=" \
+        "$preload_export_probe" "$export_probe" >/dev/null 2>&1
+    then
         fail "$key_variable retained an inherited export attribute"
     fi
 done
 
-/bin/ln -s "$valid_key_file" "$key_directory/symlink key"
-invoke_validator symlink-key failure "$key_directory/symlink key"
-
-insecure_key_directory="$test_root/insecure key directory"
-/bin/mkdir -p "$insecure_key_directory"
-/bin/chmod 0755 "$insecure_key_directory"
-insecure_parent_key="$insecure_key_directory/request proof key"
-printf '%s' "$valid_key" > "$insecure_parent_key"
-/bin/chmod 0600 "$insecure_parent_key"
-invoke_validator insecure-parent-directory failure "$insecure_parent_key"
-
-symlinked_key_parent_target="$test_root/symlinked key parent target"
-symlinked_key_parent="$test_root/symlinked key parent"
-/bin/mkdir -p "$symlinked_key_parent_target"
-/bin/chmod 0700 "$symlinked_key_parent_target"
-symlinked_parent_key="$symlinked_key_parent_target/request proof key"
-printf '%s' "$valid_key" > "$symlinked_parent_key"
-/bin/chmod 0600 "$symlinked_parent_key"
-/bin/ln -s "$symlinked_key_parent_target" "$symlinked_key_parent"
-invoke_validator \
-    symlinked-parent-directory \
-    failure \
-    "$symlinked_key_parent/request proof key"
-
-relative_key_name=request-proof-relative-test-key
-printf '%s' "$valid_key" > "$test_root/$relative_key_name"
-/bin/chmod 0600 "$test_root/$relative_key_name"
-(
-    cd "$test_root"
-    invoke_validator relative-path failure "$relative_key_name"
-)
+valid_key_file=$valid_key
+newline_key_file=$valid_key
+wrong_mode_key=invalid
+replacement_key_file=$other_key
 
 target_build_dir="$test_root/build products with spaces"
 resources_path="Big Wallet.app/Resources"
@@ -753,8 +1234,8 @@ assert_count \
     'name = "Bundle Alchemy JWT Request Proof Key";' \
     "$project_file"
 assert_count \
-    7 \
-    '"$(ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE)",' \
+    0 \
+    'ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE' \
     "$project_file"
 assert_count \
     7 \
@@ -766,11 +1247,15 @@ assert_count \
     "$project_file"
 assert_count \
     7 \
+    '"$(SRCROOT)/Scripts/alchemy_login_keychain_supervisor.pl",' \
+    "$project_file"
+assert_count \
+    7 \
     '"$(SRCROOT)/Scripts/bundle_alchemy_jwt_request_proof_key.sh",' \
     "$project_file"
 assert_count \
     7 \
-    '"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key_file.sh",' \
+    '"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key.sh",' \
     "$project_file"
 assert_count \
     7 \
@@ -795,8 +1280,11 @@ do
             active = 1
         }
         active &&
-            index($0, "\"$(ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE)\",") {
-            key_input_count++
+            index($0, "ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE") {
+            legacy_key_input = 1
+        }
+        active && /alwaysOutOfDate = 1;/ {
+            always_out_of_date += 1
         }
         active && /showEnvVarsInLog = 0;/ {
             hidden_environment = 1
@@ -805,7 +1293,9 @@ do
             exit
         }
         END {
-            if (!hidden_environment || key_input_count != 1) {
+            if (!hidden_environment ||
+                always_out_of_date != 1 ||
+                legacy_key_input) {
                 exit 1
             }
         }
@@ -851,14 +1341,14 @@ assert_bundle_phase_after_cleanup \
 
 assert_count \
     0 \
-    'Scripts/validate_alchemy_jwt_request_proof_key_file.sh' \
+    'Scripts/validate_alchemy_jwt_request_proof_key.sh' \
     "$publish_script"
 assert_count \
     1 \
     'validate_alchemy_release_inputs' \
     "$publish_script"
 assert_count \
-    1 \
+    0 \
     '--xcodebuild-flag="ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE=$proof_key_file"' \
     "$publish_script"
 assert_count \

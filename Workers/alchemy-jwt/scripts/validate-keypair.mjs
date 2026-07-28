@@ -24,9 +24,17 @@ import {
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import {
+  captureEnvironmentLocalSecret,
+  disposeCapturedEnvironmentLocalSecret,
+  readCapturedEnvironmentOrLoginKeychainSecret,
+  readLoginKeychainPassword,
+  rethrowLocalSecretCancellation,
+  throwIfLocalSecretAborted,
+} from "./local-secret.mjs";
+
 const MAX_SECRETS_FILE_BYTES = 32 * 1_024;
 const MAX_PUBLIC_KEY_FILE_BYTES = 16 * 1_024;
-const MAX_APP_PROOF_KEY_FILE_BYTES = 44;
 const MAX_PROOF_KEY_FINGERPRINT_FILE_BYTES = 65;
 const PRIVATE_KEY_FIELD = "ALCHEMY_JWT_PRIVATE_KEY";
 const REQUEST_PROOF_KEY_FIELD = "ALCHEMY_JWT_REQUEST_PROOF_KEY";
@@ -111,27 +119,10 @@ export async function readExpectedRequestProofKeyFingerprint(
   );
 }
 
-export function parseRequestProofKeyFile(
-  bytes,
+export function parseRequestProofKeyValue(
+  encoded,
   expectedFingerprint,
 ) {
-  if (
-    !(bytes instanceof Uint8Array) ||
-    (
-      bytes.byteLength !== 43 &&
-      !(
-        bytes.byteLength === 44 &&
-        bytes[43] === 0x0a
-      )
-    )
-  ) {
-    throw fail("app proof key file is invalid");
-  }
-  const encoded = strictASCII(
-    bytes.subarray(0, 43),
-    CANONICAL_PROOF_KEY,
-    "app proof key file",
-  );
   const key = parseProofKey(encoded, "app proof key");
   const expectedDigest = Buffer.from(
     requireExpectedFingerprint(expectedFingerprint),
@@ -150,22 +141,80 @@ export function parseRequestProofKeyFile(
   return key;
 }
 
-export async function readValidatedRequestProofKeyFile(
-  path,
+export async function readRequestProofKeyFromKeychain({
+  abortSignal,
+  ...dependencies
+} = {}) {
+  return readLoginKeychainPassword(
+    REQUEST_PROOF_KEY_FIELD,
+    {
+      ...dependencies,
+      maxOutputBytes: 44,
+      abortSignal,
+    },
+  );
+}
+
+export function prepareRequestProofKeyCredential(
+  environment = process.env,
+) {
+  try {
+    return captureEnvironmentLocalSecret(
+      REQUEST_PROOF_KEY_FIELD,
+      environment,
+    );
+  } catch {
+    throw fail("app proof key is unavailable");
+  }
+}
+
+export function disposeRequestProofKeyCredential(credential) {
+  disposeCapturedEnvironmentLocalSecret(credential);
+}
+
+export async function readValidatedRequestProofKey(
   {
+    environment = process.env,
     expectedFingerprint,
+    keychainReader = readRequestProofKeyFromKeychain,
+    abortSignal,
+    preparedCredential,
   } = {},
 ) {
-  const pinnedFingerprint =
-    expectedFingerprint === undefined
-      ? await readExpectedRequestProofKeyFingerprint()
-      : requireExpectedFingerprint(expectedFingerprint);
-  return parseRequestProofKeyFile(
-    await readBoundedRegularFile(
-      path,
-      MAX_APP_PROOF_KEY_FILE_BYTES,
-      { requirePrivatePermissions: true },
-    ),
+  const credential =
+    preparedCredential ??
+    prepareRequestProofKeyCredential(environment);
+  let encoded;
+  try {
+    encoded = await readCapturedEnvironmentOrLoginKeychainSecret(
+      credential,
+      {
+        maxKeychainOutputBytes: 44,
+        abortSignal,
+        keychainReader: (_name, dependencies) =>
+          keychainReader(dependencies),
+      },
+    );
+    throwIfLocalSecretAborted(abortSignal);
+  } catch (error) {
+    rethrowLocalSecretCancellation(error, abortSignal);
+    throw fail("app proof key is unavailable");
+  } finally {
+    disposeRequestProofKeyCredential(credential);
+  }
+  let pinnedFingerprint;
+  try {
+    pinnedFingerprint =
+      expectedFingerprint === undefined
+        ? await readExpectedRequestProofKeyFingerprint()
+        : requireExpectedFingerprint(expectedFingerprint);
+    throwIfLocalSecretAborted(abortSignal);
+  } catch (error) {
+    rethrowLocalSecretCancellation(error, abortSignal);
+    throw error;
+  }
+  return parseRequestProofKeyValue(
+    encoded,
     pinnedFingerprint,
   );
 }
@@ -177,9 +226,9 @@ function usage() {
     "Required options:",
     "  --secrets-file PATH     Absolute path to mode-0600 Wrangler JSON secrets",
     "  --public-key-file PATH  Absolute path to Alchemy's SPKI public key PEM",
-    "  --app-proof-key-file PATH",
-    "                         Absolute path to the app's mode-0600 proof key",
     "  --expected-kid KID      Alchemy key ID to place in the test JWT header",
+    "",
+    `${REQUEST_PROOF_KEY_FIELD} is read from the environment or login Keychain.`,
     "",
     "The command never prints key material, the kid, the JWT, or signatures.",
   ].join("\n");
@@ -194,13 +243,11 @@ export function parseKeypairArguments(arguments_) {
     help: false,
     secretsFile: undefined,
     publicKeyFile: undefined,
-    appProofKeyFile: undefined,
     expectedKid: undefined,
   };
   const fields = new Map([
     ["--secrets-file", "secretsFile"],
     ["--public-key-file", "publicKeyFile"],
-    ["--app-proof-key-file", "appProofKeyFile"],
     ["--expected-kid", "expectedKid"],
   ]);
 
@@ -224,15 +271,13 @@ export function parseKeypairArguments(arguments_) {
   if (
     parsed.secretsFile === undefined ||
     parsed.publicKeyFile === undefined ||
-    parsed.appProofKeyFile === undefined ||
     parsed.expectedKid === undefined
   ) {
-    throw fail("all four key and proof options are required");
+    throw fail("all keypair options are required");
   }
   if (
     !isAbsolute(parsed.secretsFile) ||
-    !isAbsolute(parsed.publicKeyFile) ||
-    !isAbsolute(parsed.appProofKeyFile)
+    !isAbsolute(parsed.publicKeyFile)
   ) {
     throw fail("key files must use absolute paths");
   }
@@ -590,18 +635,18 @@ function base64UrlJson(value) {
 export async function prepareValidatedKeypair({
   secretsFile,
   publicKeyFile,
-  appProofKeyFile,
   expectedKid,
 }, {
   expectedRequestProofKeyFingerprint,
+  requestProofKeyReader = readValidatedRequestProofKey,
+  requestProofKeyEnvironment = process.env,
+  abortSignal,
 } = {}) {
   if (
     typeof secretsFile !== "string" ||
     !isAbsolute(secretsFile) ||
     typeof publicKeyFile !== "string" ||
     !isAbsolute(publicKeyFile) ||
-    typeof appProofKeyFile !== "string" ||
-    !isAbsolute(appProofKeyFile) ||
     typeof expectedKid !== "string" ||
     !PRINTABLE_KEY_ID.test(expectedKid)
   ) {
@@ -615,8 +660,15 @@ export async function prepareValidatedKeypair({
   let derivedPublicDer;
   let suppliedPublicDer;
   let signature;
+  let preparedCredential;
   let succeeded = false;
   try {
+    if (requestProofKeyReader === readValidatedRequestProofKey) {
+      preparedCredential = prepareRequestProofKeyCredential(
+        requestProofKeyEnvironment,
+      );
+    }
+    throwIfLocalSecretAborted(abortSignal);
     secretsBytes = await readBoundedRegularFile(
       secretsFile,
       MAX_SECRETS_FILE_BYTES,
@@ -624,16 +676,22 @@ export async function prepareValidatedKeypair({
         requirePrivatePermissions: true,
       },
     );
+    throwIfLocalSecretAborted(abortSignal);
     publicKeyBytes = await readBoundedRegularFile(
       publicKeyFile,
       MAX_PUBLIC_KEY_FILE_BYTES,
     );
-    appProofKey = await readValidatedRequestProofKeyFile(
-      appProofKeyFile,
-      {
-        expectedFingerprint: expectedRequestProofKeyFingerprint,
-      },
-    );
+    throwIfLocalSecretAborted(abortSignal);
+    appProofKey = await requestProofKeyReader({
+      expectedFingerprint: expectedRequestProofKeyFingerprint,
+      abortSignal,
+      ...(
+        preparedCredential === undefined
+          ? {}
+          : { preparedCredential }
+      ),
+    });
+    throwIfLocalSecretAborted(abortSignal);
     const parsedSecrets = parseSecretsFile(secretsBytes);
     const { privateKeyPem } = parsedSecrets;
     requestProofKey = parsedSecrets.requestProofKey;
@@ -686,6 +744,9 @@ export async function prepareValidatedKeypair({
 
     succeeded = true;
     return { secretsBytes };
+  } catch (error) {
+    rethrowLocalSecretCancellation(error, abortSignal);
+    throw error;
   } finally {
     if (!succeeded) {
       secretsBytes?.fill(0);
@@ -696,6 +757,7 @@ export async function prepareValidatedKeypair({
     derivedPublicDer?.fill(0);
     suppliedPublicDer?.fill(0);
     signature?.fill(0);
+    disposeRequestProofKeyCredential(preparedCredential);
   }
 }
 
@@ -713,6 +775,8 @@ export async function keypairMain(
     stdout = (message) => console.log(message),
     stderr = (message) => console.error(message),
     expectedRequestProofKeyFingerprint,
+    requestProofKeyReader,
+    abortSignal,
   } = {},
 ) {
   try {
@@ -723,12 +787,15 @@ export async function keypairMain(
     }
     await validateKeypair(options, {
       expectedRequestProofKeyFingerprint,
+      requestProofKeyReader,
+      abortSignal,
     });
     stdout(
       "keypair-preflight: pass rsa=2048 formats=pkcs8/spki proof-key=matched",
     );
     return 0;
   } catch (error) {
+    rethrowLocalSecretCancellation(error, abortSignal);
     const message =
       error instanceof SafePreflightError
         ? error.message

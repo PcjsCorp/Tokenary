@@ -1,6 +1,19 @@
 #!/bin/sh
 
+set +x
+set +a
 set -eu
+
+unset alchemy_jwt_entrypoint_source \
+    alchemy_jwt_entrypoint_directory
+alchemy_jwt_entrypoint_source=$0
+case "$alchemy_jwt_entrypoint_source" in
+    */*) alchemy_jwt_entrypoint_directory=${alchemy_jwt_entrypoint_source%/*} ;;
+    *) alchemy_jwt_entrypoint_directory=. ;;
+esac
+. "$alchemy_jwt_entrypoint_directory/alchemy_jwt_request_proof_key_common.sh"
+unset alchemy_jwt_entrypoint_source \
+    alchemy_jwt_entrypoint_directory
 
 fail() {
     printf '%s\n' "error: $1" >&2
@@ -33,14 +46,8 @@ case "$platform" in
         ;;
 esac
 
-key_file=${ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE:-}
-[ -n "$key_file" ] ||
-    fail "ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE is required"
-
 script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && /bin/pwd -P)
-. "$script_directory/alchemy_jwt_request_proof_key_common.sh"
 load_alchemy_jwt_request_proof_key \
-    "$key_file" \
     "$script_directory/alchemy_jwt_request_proof_key.sha256"
 
 if [ -L "$artifact" ]; then

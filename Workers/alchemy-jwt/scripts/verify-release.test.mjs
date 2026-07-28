@@ -21,7 +21,6 @@ const OPTIONS = {
   help: false,
   expectedKid: "expected-test-kid",
   expectedVersion: VERSION,
-  appProofKeyFile: "/protected/app-proof.key",
 };
 const WORKER_DIRECTORY = "/protected/release/worker";
 
@@ -64,15 +63,13 @@ function snapshot(onCleanup = () => undefined) {
   };
 }
 
-test("release verifier accepts only the three fixed attestation options", () => {
+test("release verifier accepts only the two fixed attestation options", () => {
   assert.deepEqual(
     parseReleaseVerificationArguments([
       "--expected-kid",
       OPTIONS.expectedKid,
       "--expected-version",
       VERSION,
-      "--app-proof-key-file",
-      OPTIONS.appProofKeyFile,
     ]),
     OPTIONS,
   );
@@ -84,14 +81,7 @@ test("release verifier accepts only the three fixed attestation options", () => 
     ["--catalog", "/tmp/catalog.json"],
     ["--version-override"],
     ["--expected-version", VERSION.toUpperCase()],
-    [
-      "--expected-kid",
-      OPTIONS.expectedKid,
-      "--expected-version",
-      VERSION,
-      "--app-proof-key-file",
-      "relative.key",
-    ],
+    ["--app-proof-key-file", "/legacy/key"],
   ]) {
     assert.throws(
       () => parseReleaseVerificationArguments(arguments_),
@@ -239,8 +229,12 @@ test("remote settings use only the fixed read-only Cloudflare API request", asyn
 
 test("release verification checks status and settings before live probes", async () => {
   const events = [];
+  const parentEnvironment = {
+    ALCHEMY_JWT_REQUEST_PROOF_KEY: "proof-key-sentinel",
+    CLOUDFLARE_API_TOKEN: "scoped-token",
+  };
   const result = await executeReleaseVerification(OPTIONS, {
-    parentEnvironment: { CLOUDFLARE_API_TOKEN: "scoped-token" },
+    parentEnvironment,
     contractLoader: async () => ({
       workerName: "alchemy-jwt-proxy",
       accountId: ACCOUNT_ID,
@@ -273,14 +267,31 @@ test("release verification checks status and settings before live probes", async
       assert.equal(apiToken, "scoped-token");
       return settingsEnvelope();
     },
-    liveVerifier: async (options) => {
+    proofKeyReader: async ({ environment }) => {
+      assert.equal(environment, parentEnvironment);
+      assert.equal(
+        environment.ALCHEMY_JWT_REQUEST_PROOF_KEY,
+        "proof-key-sentinel",
+      );
+      delete environment.ALCHEMY_JWT_REQUEST_PROOF_KEY;
+      return Buffer.alloc(32, 0xa5);
+    },
+    liveVerifier: async (options, { readProofKey }) => {
       events.push("live");
       assert.deepEqual(options, OPTIONS);
+      const proofKey = await readProofKey();
+      assert.deepEqual(proofKey, Buffer.alloc(32, 0xa5));
+      proofKey.fill(0);
       return { probeCount: 9, canary: { ok: true } };
     },
   });
   assert.deepEqual(events, ["status", "cleanup", "settings", "live"]);
   assert.equal(result.live.canary.ok, true);
+  assert.equal(parentEnvironment.CLOUDFLARE_API_TOKEN, undefined);
+  assert.equal(
+    parentEnvironment.ALCHEMY_JWT_REQUEST_PROOF_KEY,
+    undefined,
+  );
 });
 
 test("deployment mismatch blocks public probes", async () => {
@@ -335,7 +346,7 @@ test("remote settings API failure blocks public probes", async () => {
   assert.equal(liveCalled, false);
 });
 
-test("release verifier reports success without printing the kid or key path", async () => {
+test("release verifier reports success without printing the kid", async () => {
   const output = [];
   assert.equal(
     await releaseVerificationMain([
@@ -343,8 +354,6 @@ test("release verifier reports success without printing the kid or key path", as
       OPTIONS.expectedKid,
       "--expected-version",
       VERSION,
-      "--app-proof-key-file",
-      OPTIONS.appProofKeyFile,
     ], {
       stdout: (message) => output.push(message),
       executor: async () => ({
@@ -357,5 +366,5 @@ test("release verifier reports success without printing the kid or key path", as
     output.join(""),
     /traffic=100 traces=disabled probes=9 eth-mainnet=ok/u,
   );
-  assert.doesNotMatch(output.join(""), /expected-test-kid|app-proof\.key/u);
+  assert.doesNotMatch(output.join(""), /expected-test-kid/u);
 });

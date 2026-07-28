@@ -15,7 +15,6 @@ import {
 } from "node:crypto";
 import {
   dirname,
-  isAbsolute,
   resolve,
 } from "node:path";
 import process from "node:process";
@@ -27,7 +26,7 @@ import {
 } from "./production-contract.mjs";
 import {
   readBoundedRegularFile,
-  readValidatedRequestProofKeyFile,
+  readValidatedRequestProofKey,
   SafePreflightError,
 } from "./validate-keypair.mjs";
 
@@ -97,21 +96,22 @@ function safeFailure(message, kind) {
 }
 
 export async function readAppProofKey(
-  path,
   {
     expectedFingerprint,
+    ...dependencies
   } = {},
 ) {
   try {
-    return await readValidatedRequestProofKeyFile(path, {
+    return await readValidatedRequestProofKey({
       expectedFingerprint,
+      ...dependencies,
     });
   } catch (error) {
     if (
       error instanceof SafeValidationError ||
       error instanceof SafePreflightError
     ) {
-      throw safeFailure("App proof key file could not be validated");
+      throw safeFailure("App proof key could not be validated");
     }
     throw error;
   }
@@ -124,14 +124,14 @@ export async function validateOptionalDryRunProofKey(
     readProofKey = readAppProofKey,
   } = {},
 ) {
-  if (options.appProofKeyFile === undefined) {
+  if (
+    options.expectedKid === undefined ||
+    options.expectedVersion === undefined
+  ) {
     return false;
   }
 
-  const requestProofKey = await readProofKey(
-    options.appProofKeyFile,
-    { expectedFingerprint },
-  );
+  const requestProofKey = await readProofKey({ expectedFingerprint });
   try {
     return true;
   } finally {
@@ -204,7 +204,7 @@ function usage() {
   return [
     "Usage: node scripts/live-validate.mjs [options]",
     "",
-    "Live validation requires expected kid, version, and app proof key.",
+    "Live validation requires expected kid, version, and app proof key access.",
     "",
     "Options:",
     `  --broker URL            Issuer endpoint (fixed origin default: ${DEFAULT_BROKER_URL})`,
@@ -212,8 +212,6 @@ function usage() {
     `  --expected-evm N        Required EVM host count (default: ${DEFAULT_EXPECTED_EVM_HOSTS})`,
     "  --expected-kid KID      Required JWT kid (never printed)",
     "  --expected-version UUID Required Worker version response header",
-    "  --app-proof-key-file PATH",
-    "                          Protected app request-proof key file",
     `  --worker-name NAME      Worker override name (default: ${DEFAULT_WORKER_NAME})`,
     "  --version-override      Send requests to the expected 0%-traffic version",
     `  --rpc-attempts N        Transient-only attempts, 1-${MAX_RPC_ATTEMPTS} (default: ${DEFAULT_RPC_ATTEMPTS})`,
@@ -222,6 +220,8 @@ function usage() {
     "  --dry-run               Validate inputs/catalog without network access",
     "  --self-test             Run structural/tooling tests without network access",
     "  --help                  Show this help",
+    "",
+    "ALCHEMY_JWT_REQUEST_PROOF_KEY is read from the environment or login Keychain.",
   ].join("\n");
 }
 
@@ -247,7 +247,6 @@ export function parseArguments(arguments_) {
     expectedEvmHosts: DEFAULT_EXPECTED_EVM_HOSTS,
     expectedKid: undefined,
     expectedVersion: undefined,
-    appProofKeyFile: undefined,
     workerName: DEFAULT_WORKER_NAME,
     versionOverride: false,
     rpcAttempts: DEFAULT_RPC_ATTEMPTS,
@@ -263,7 +262,6 @@ export function parseArguments(arguments_) {
     ["--expected-evm", "expectedEvmHosts"],
     ["--expected-kid", "expectedKid"],
     ["--expected-version", "expectedVersion"],
-    ["--app-proof-key-file", "appProofKeyFile"],
     ["--worker-name", "workerName"],
     ["--rpc-attempts", "rpcAttempts"],
     ["--concurrency", "concurrency"],
@@ -309,7 +307,6 @@ export function parseArguments(arguments_) {
       key === "catalogPath" ||
       key === "expectedKid" ||
       key === "expectedVersion" ||
-      key === "appProofKeyFile" ||
       key === "workerName"
     ) {
       options[key] = value;
@@ -345,20 +342,13 @@ export function parseArguments(arguments_) {
   if (options.versionOverride && options.expectedVersion === undefined) {
     throw safeFailure("--version-override requires --expected-version");
   }
-  if (
-    options.appProofKeyFile !== undefined &&
-    !isAbsolute(options.appProofKeyFile)
-  ) {
-    throw safeFailure("--app-proof-key-file must use an absolute path");
-  }
   return options;
 }
 
 function requireLiveAttestation(options) {
   if (
     options.expectedKid === undefined ||
-    options.expectedVersion === undefined ||
-    options.appProofKeyFile === undefined
+    options.expectedVersion === undefined
   ) {
     throw safeFailure(
       "Live validation requires expected kid, version, and app proof key",
@@ -1380,7 +1370,6 @@ export async function verifyReleaseLiveContract(
   {
     expectedKid,
     expectedVersion,
-    appProofKeyFile,
   },
   {
     fetchImplementation = fetch,
@@ -1396,7 +1385,6 @@ export async function verifyReleaseLiveContract(
   const options = {
     expectedKid,
     expectedVersion,
-    appProofKeyFile,
     workerName: DEFAULT_WORKER_NAME,
     versionOverride: false,
     timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -1409,10 +1397,6 @@ export async function verifyReleaseLiveContract(
   if (!CANONICAL_UUID.test(expectedVersion)) {
     throw safeFailure("Expected release version is invalid");
   }
-  if (!isAbsolute(appProofKeyFile)) {
-    throw safeFailure("Release app proof key path must be absolute");
-  }
-
   const nowMilliseconds = nowImplementation();
   if (!Number.isFinite(nowMilliseconds) || nowMilliseconds < 0) {
     throw safeFailure("Release verification clock is invalid");
@@ -1430,7 +1414,7 @@ export async function verifyReleaseLiveContract(
     { fetchImplementation, nowImplementation },
   );
 
-  const requestProofKey = await readProofKey(appProofKeyFile);
+  const requestProofKey = await readProofKey();
   let token = "";
   let probeCount;
   try {
@@ -1630,7 +1614,7 @@ async function main() {
         `concurrency=${options.concurrency}`,
         `rpc-attempts=${options.rpcAttempts}`,
         `expected-ttl=${REQUIRED_JWT_TTL_SECONDS}`,
-        `attestation=${options.expectedKid !== undefined && options.expectedVersion !== undefined && options.appProofKeyFile !== undefined ? "provided" : "not-provided"}`,
+        `attestation=${options.expectedKid !== undefined && options.expectedVersion !== undefined ? "provided" : "not-provided"}`,
         `version-override=${options.versionOverride}`,
       ].join(" "),
     );
@@ -1648,9 +1632,7 @@ async function main() {
       `worker-version: pass attempts=${versionAttempts} override=${options.versionOverride}`,
     );
 
-    const requestProofKey = await readAppProofKey(
-      options.appProofKeyFile,
-    );
+    const requestProofKey = await readAppProofKey();
     try {
       const probeCount = await runBrokerContractProbes(
         brokerURL,

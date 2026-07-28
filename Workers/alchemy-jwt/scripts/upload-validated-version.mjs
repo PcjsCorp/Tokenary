@@ -27,22 +27,28 @@ import {
 import process from "node:process";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { types as utilTypes } from "node:util";
 
 import { experimental_readRawConfig } from "wrangler";
 
 import {
+  disposeRequestProofKeyCredential,
   prepareValidatedKeypair,
+  prepareRequestProofKeyCredential,
   readBoundedRegularFile,
+  readValidatedRequestProofKey,
   SafePreflightError,
 } from "./validate-keypair.mjs";
 import {
   assertProductionObservabilityPolicy,
   createProtectedProductionSnapshot,
   isValidWorkerName,
+  loadProductionWranglerEnvironment,
   PINNED_WRANGLER_PATH,
   PINNED_WRANGLER_VERSION,
   productionWranglerEnvironment,
   PRODUCTION_WRANGLER_CONFIG_PATH,
+  SafeProductionWranglerError,
 } from "./production-contract.mjs";
 
 const MAX_SECRETS_FILE_BYTES = 32 * 1_024;
@@ -87,13 +93,14 @@ function usage() {
     "Required options:",
     "  --secrets-file PATH",
     "  --public-key-file PATH",
-    "  --app-proof-key-file PATH",
     "  --expected-kid KID",
     "  --tag TAG",
     "  --message MESSAGE",
     "",
     "The command validates and snapshots the signing bundle before invoking",
     "the pinned local Wrangler with versions upload --strict.",
+    "ALCHEMY_JWT_REQUEST_PROOF_KEY is read from the environment or login Keychain.",
+    "CLOUDFLARE_API_TOKEN is read from the environment or login Keychain.",
   ].join("\n");
 }
 
@@ -106,7 +113,6 @@ export function parseUploadArguments(arguments_) {
     help: false,
     secretsFile: undefined,
     publicKeyFile: undefined,
-    appProofKeyFile: undefined,
     expectedKid: undefined,
     tag: undefined,
     message: undefined,
@@ -114,7 +120,6 @@ export function parseUploadArguments(arguments_) {
   const fields = new Map([
     ["--secrets-file", "secretsFile"],
     ["--public-key-file", "publicKeyFile"],
-    ["--app-proof-key-file", "appProofKeyFile"],
     ["--expected-kid", "expectedKid"],
     ["--tag", "tag"],
     ["--message", "message"],
@@ -140,7 +145,6 @@ export function parseUploadArguments(arguments_) {
   if (
     parsed.secretsFile === undefined ||
     parsed.publicKeyFile === undefined ||
-    parsed.appProofKeyFile === undefined ||
     parsed.expectedKid === undefined ||
     parsed.tag === undefined ||
     parsed.message === undefined
@@ -417,8 +421,17 @@ function interruptionFromAbortSignal(abortSignal) {
   if (!abortSignal?.aborted) {
     return undefined;
   }
-  return abortSignal.reason instanceof UploadInterruptedError
-    ? abortSignal.reason
+  let reason;
+  try {
+    reason = abortSignal.reason;
+  } catch {
+    return new UploadInterruptedError("SIGTERM");
+  }
+  return (
+    utilTypes.isNativeError(reason) &&
+    reason instanceof UploadInterruptedError
+  )
+    ? reason
     : new UploadInterruptedError("SIGTERM");
 }
 
@@ -427,6 +440,38 @@ function throwIfInterrupted(abortSignal) {
   if (interruption !== undefined) {
     throw interruption;
   }
+}
+
+function safelyDisposeCredentialResult(result, disposeResult) {
+  if (typeof disposeResult !== "function") {
+    return;
+  }
+  try {
+    disposeResult(result);
+  } catch {
+    // Cancellation identity takes priority over best-effort memory cleanup.
+  }
+}
+
+async function awaitCredentialLookup(
+  operation,
+  abortSignal,
+  disposeResult,
+) {
+  throwIfInterrupted(abortSignal);
+  let result;
+  try {
+    result = await operation();
+  } catch (error) {
+    throwIfInterrupted(abortSignal);
+    throw error;
+  }
+  const interruption = interruptionFromAbortSignal(abortSignal);
+  if (interruption !== undefined) {
+    safelyDisposeCredentialResult(result, disposeResult);
+    throw interruption;
+  }
+  return result;
 }
 
 async function writeProtectedFile(directory, name, bytes) {
@@ -782,11 +827,51 @@ export async function safeUploadVersion(
     productionSnapshotFactory = createProtectedProductionSnapshot,
     abortSignal,
     expectedRequestProofKeyFingerprint,
+    requestProofKeyReader,
     keypairPreparer = prepareValidatedKeypair,
+    parentEnvironment = process.env,
+    cloudflareEnvironmentLoader =
+      loadProductionWranglerEnvironment,
   } = {},
 ) {
   let secretsBytes;
+  let preparedRequestProofKeyCredential;
   try {
+    const usesDefaultRequestProofKeyReader =
+      requestProofKeyReader === undefined ||
+      requestProofKeyReader === null;
+    if (usesDefaultRequestProofKeyReader) {
+      preparedRequestProofKeyCredential =
+        prepareRequestProofKeyCredential(parentEnvironment);
+    }
+    throwIfInterrupted(abortSignal);
+    const cloudflareEnvironment = await awaitCredentialLookup(
+      () => cloudflareEnvironmentLoader(
+        parentEnvironment,
+        { abortSignal },
+      ),
+      abortSignal,
+    );
+    const selectedRequestProofKeyReader = usesDefaultRequestProofKeyReader
+      ? readValidatedRequestProofKey
+      : requestProofKeyReader;
+    const effectiveRequestProofKeyReader = (dependencies = {}) =>
+      awaitCredentialLookup(
+        () => selectedRequestProofKeyReader({
+          ...dependencies,
+          ...(
+            usesDefaultRequestProofKeyReader
+              ? {
+                preparedCredential:
+                  preparedRequestProofKeyCredential,
+              }
+              : {}
+          ),
+          abortSignal,
+        }),
+        abortSignal,
+        (proofKey) => proofKey?.fill(0),
+      );
     throwIfInterrupted(abortSignal);
     await requireMatchingWranglerKeyID(
       options.expectedKid,
@@ -794,9 +879,16 @@ export async function safeUploadVersion(
       readWranglerConfiguration,
     );
     throwIfInterrupted(abortSignal);
-    ({ secretsBytes } = await keypairPreparer(options, {
-      expectedRequestProofKeyFingerprint,
-    }));
+    const preparedKeypair = await awaitCredentialLookup(
+      () => keypairPreparer(options, {
+        expectedRequestProofKeyFingerprint,
+        requestProofKeyReader: effectiveRequestProofKeyReader,
+        abortSignal,
+      }),
+      abortSignal,
+      (result) => result?.secretsBytes?.fill(0),
+    );
+    ({ secretsBytes } = preparedKeypair);
     throwIfInterrupted(abortSignal);
     const expectedDigest = digest(secretsBytes);
     const canonicalTemporaryRoot = await realpath(
@@ -831,7 +923,6 @@ export async function safeUploadVersion(
           excludedPaths: [
             options.secretsFile,
             options.publicKeyFile,
-            options.appProofKeyFile,
           ],
         },
       );
@@ -911,6 +1002,7 @@ export async function safeUploadVersion(
         stdout,
         stderr,
         abortSignal,
+        parentEnvironment: cloudflareEnvironment,
       });
       throwIfInterrupted(abortSignal);
       uploadedVersionID = await uploadedVersionReader(
@@ -947,6 +1039,9 @@ export async function safeUploadVersion(
     return uploadedVersionID;
   } finally {
     secretsBytes?.fill(0);
+    disposeRequestProofKeyCredential(
+      preparedRequestProofKeyCredential,
+    );
   }
 }
 
@@ -1027,7 +1122,8 @@ export async function uploadMain(
     ) {
       const message =
         error instanceof SafeUploadError ||
-        error instanceof SafePreflightError
+        error instanceof SafePreflightError ||
+        error instanceof SafeProductionWranglerError
           ? error.message
           : "unexpected validated upload failure";
       stderr(`validated-upload: failed: ${message}\n`);

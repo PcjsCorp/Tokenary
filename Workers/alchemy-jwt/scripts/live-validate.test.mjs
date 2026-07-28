@@ -119,15 +119,12 @@ test("live CLI parses exact version attestation and bounded retry options", () =
     KID,
     "--expected-version",
     VERSION,
-    "--app-proof-key-file",
-    "/protected/app-proof.key",
     "--version-override",
     "--rpc-attempts",
     "5",
   ]);
   assert.equal(options.expectedKid, KID);
   assert.equal(options.expectedVersion, VERSION);
-  assert.equal(options.appProofKeyFile, "/protected/app-proof.key");
   assert.equal(options.versionOverride, true);
   assert.equal(options.rpcAttempts, 5);
   assert.throws(
@@ -139,7 +136,7 @@ test("live CLI parses exact version attestation and bounded retry options", () =
     SafeValidationError,
   );
   assert.throws(
-    () => parseArguments(["--app-proof-key-file", "relative.key"]),
+    () => parseArguments(["--app-proof-key-file", "/legacy/key"]),
     SafeValidationError,
   );
   assert.equal(
@@ -254,51 +251,46 @@ test("network catalog reads are bounded and require a stable regular file", asyn
   );
 });
 
-test("live proof-key loading uses strict raw bytes and pinned fingerprint", async () => {
-  const directory = await realpath(
-    await mkdtemp(
-      join(tmpdir(), "alchemy-jwt-live-proof-key-"),
-    ),
-  );
-  temporaryDirectories.push(directory);
-  const path = join(directory, "app-proof.key");
-  await writeFile(path, `${REQUEST_PROOF_KEY}\n`, { mode: 0o600 });
-  const key = await readAppProofKey(path, {
+test("live proof-key loading uses the environment and pinned fingerprint", async () => {
+  const environment = {
+    ALCHEMY_JWT_REQUEST_PROOF_KEY: REQUEST_PROOF_KEY,
+  };
+  const key = await readAppProofKey({
     expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+    environment,
   });
   assert.deepEqual(key, Buffer.from(REQUEST_PROOF_KEY, "base64url"));
+  assert.equal(environment.ALCHEMY_JWT_REQUEST_PROOF_KEY, undefined);
   key.fill(0);
 
-  await writeFile(
-    path,
-    Buffer.concat([
-      Buffer.from([0xef, 0xbb, 0xbf]),
-      Buffer.from(REQUEST_PROOF_KEY, "ascii"),
-    ]),
-    { mode: 0o600 },
-  );
   await assert.rejects(
-    readAppProofKey(path, {
+    readAppProofKey({
       expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+      environment: {
+        ALCHEMY_JWT_REQUEST_PROOF_KEY:
+          `\ufeff${REQUEST_PROOF_KEY}`,
+      },
     }),
     /could not be validated/u,
   );
 });
 
 test("dry-run validates and clears a supplied proof key", async () => {
-  const directory = await realpath(
-    await mkdtemp(
-      join(tmpdir(), "alchemy-jwt-dry-run-proof-key-"),
-    ),
-  );
-  temporaryDirectories.push(directory);
-  const path = join(directory, "app-proof.key");
-  await writeFile(path, REQUEST_PROOF_KEY, { mode: 0o600 });
-
+  const attestation = {
+    expectedKid: KID,
+    expectedVersion: VERSION,
+  };
   assert.equal(
     await validateOptionalDryRunProofKey(
-      { appProofKeyFile: path },
-      { expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT },
+      attestation,
+      {
+        readProofKey: () => readAppProofKey({
+          expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+          environment: {
+            ALCHEMY_JWT_REQUEST_PROOF_KEY: REQUEST_PROOF_KEY,
+          },
+        }),
+      },
     ),
     true,
   );
@@ -309,24 +301,46 @@ test("dry-run validates and clears a supplied proof key", async () => {
 
   await assert.rejects(
     validateOptionalDryRunProofKey(
-      { appProofKeyFile: join(directory, "missing.key") },
-      { expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT },
+      attestation,
+      {
+        readProofKey: () => readAppProofKey({
+          expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+          environment: {},
+          keychainReader: async () => {
+            throw new Error("missing");
+          },
+        }),
+      },
     ),
     /could not be validated/u,
   );
   await assert.rejects(
     validateOptionalDryRunProofKey(
-      { appProofKeyFile: path },
-      { expectedFingerprint: "0".repeat(64) },
+      attestation,
+      {
+        readProofKey: () => readAppProofKey({
+          expectedFingerprint: "0".repeat(64),
+          environment: {
+            ALCHEMY_JWT_REQUEST_PROOF_KEY: REQUEST_PROOF_KEY,
+          },
+        }),
+      },
     ),
     /could not be validated/u,
   );
 
-  await writeFile(path, `${REQUEST_PROOF_KEY}=`, { mode: 0o600 });
   await assert.rejects(
     validateOptionalDryRunProofKey(
-      { appProofKeyFile: path },
-      { expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT },
+      attestation,
+      {
+        readProofKey: () => readAppProofKey({
+          expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+          environment: {
+            ALCHEMY_JWT_REQUEST_PROOF_KEY:
+              `${REQUEST_PROOF_KEY}=`,
+          },
+        }),
+      },
     ),
     /could not be validated/u,
   );
@@ -334,7 +348,7 @@ test("dry-run validates and clears a supplied proof key", async () => {
   const injectedKey = Buffer.alloc(32, 0xa5);
   assert.equal(
     await validateOptionalDryRunProofKey(
-      { appProofKeyFile: "/protected/app-proof.key" },
+      attestation,
       {
         readProofKey: async () => injectedKey,
       },
@@ -433,7 +447,6 @@ test("release live verification delays and clears the proof key before RPC", asy
     {
       expectedKid: KID,
       expectedVersion: VERSION,
-      appProofKeyFile: "/protected/app-proof.key",
     },
     {
       nowImplementation: () => 1_800_000_000_000,

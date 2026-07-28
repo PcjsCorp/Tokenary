@@ -312,11 +312,18 @@ final class AlchemyJWTProductionContractTests: XCTestCase {
         ]
         let phaseComment = "Bundle Alchemy JWT Request Proof Key"
         let requiredInputPaths = [
+            "$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key_common.sh",
+            "$(SRCROOT)/Scripts/alchemy_login_keychain_supervisor.pl",
             "$(SRCROOT)/Scripts/bundle_alchemy_jwt_request_proof_key.sh",
-            "$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key_file.sh",
+            "$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key.sh",
             "$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key.sha256",
         ]
         var phaseIDs = Set<String>()
+
+        XCTAssertFalse(
+            project.contains("ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE"),
+            "The project must not retain the legacy proof-key file setting"
+        )
 
         for targetName in productionTargets {
             let target = try Self.projectObject(
@@ -352,11 +359,31 @@ final class AlchemyJWTProductionContractTests: XCTestCase {
             }
             XCTAssertEqual(
                 Self.occurrenceCount(
+                    of: "alwaysOutOfDate = 1;",
+                    in: phase
+                ),
+                1,
+                "\(targetName) must rebundle credentials on every build"
+            )
+            XCTAssertEqual(
+                Self.occurrenceCount(
+                    of: "showEnvVarsInLog = 0;",
+                    in: phase
+                ),
+                1,
+                "\(targetName) must hide the build-phase environment"
+            )
+            XCTAssertEqual(
+                Self.occurrenceCount(
                     of: "AlchemyJWTRequestProofKey",
                     in: phase
                 ),
                 1,
                 "\(targetName) must produce exactly one proof-key resource"
+            )
+            XCTAssertFalse(
+                phase.contains("ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE"),
+                "\(targetName) must not depend on a proof-key file path"
             )
         }
 

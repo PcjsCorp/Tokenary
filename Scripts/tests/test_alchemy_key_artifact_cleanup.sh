@@ -17,6 +17,7 @@ trap 'rm -rf "$test_root"' 0 HUP INT TERM
 
 sentinel="SYNTHETIC_ALCHEMY_KEY_CONTENT_MUST_NOT_LEAK"
 request_proof_key_value=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+cloudflare_token_value=$(printf '%040d' 0)
 request_proof_key_file="$test_root/request proof key with spaces"
 printf '%s' "$request_proof_key_value" > "$request_proof_key_file"
 chmod 0600 "$request_proof_key_file"
@@ -506,8 +507,9 @@ for fixture_script in \
     Scripts/asc/publish.sh \
     Scripts/asc/common.sh \
     Scripts/inpage_provider_toolchain.sh \
-    Scripts/validate_alchemy_jwt_request_proof_key_file.sh \
+    Scripts/validate_alchemy_jwt_request_proof_key.sh \
     Scripts/alchemy_jwt_request_proof_key_common.sh \
+    Scripts/alchemy_login_keychain_supervisor.pl \
     Scripts/assert_no_bundled_alchemy_key.sh \
     Scripts/assert_bundled_alchemy_jwt_request_proof_key.sh
 do
@@ -559,10 +561,21 @@ mock_bin="$mock_home/.local/bin"
 mock_asc="$mock_bin/asc"
 mock_asc_log="$logs_directory/publish-existing-build.asc"
 actual_node=$(command -v node)
+actual_jq=$(command -v jq)
 mkdir -p "$mock_bin"
 printf '%s\n' \
     '#!/bin/sh' \
     'if [ "${1:-}" = "--version" ]; then' \
+    '    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY+x}" != x ] || exit 75' \
+    '    [ "${CLOUDFLARE_API_TOKEN+x}" != x ] || exit 76' \
+    '    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE+x}" != x ] || exit 77' \
+    '    [ "${CLOUDFLARE_API_TOKEN_VALUE+x}" != x ] || exit 78' \
+    '    [ "${_alchemy_jwt_request_proof_key_captured_environment_value+x}" != x ] || exit 79' \
+    '    [ "${_cloudflare_api_token_captured_environment_value+x}" != x ] || exit 80' \
+    '    [ "${LOGIN_KEYCHAIN_SECRET_VALUE+x}" != x ] || exit 81' \
+    '    [ "${login_keychain_output_with_sentinel+x}" != x ] || exit 82' \
+    '    [ "${alchemy_key_snapshot+x}" != x ] || exit 83' \
+    '    [ "${_asc_cloudflare_api_token_snapshot+x}" != x ] || exit 84' \
     '    printf "%s\n" v24.18.0' \
     '    exit 0' \
     'fi' \
@@ -570,11 +583,45 @@ printf '%s\n' \
     > "$mock_bin/node"
 printf '%s\n' \
     '#!/bin/sh' \
+    '[ "${ALCHEMY_JWT_REQUEST_PROOF_KEY+x}" != x ] || exit 75' \
+    '[ "${CLOUDFLARE_API_TOKEN+x}" != x ] || exit 76' \
+    '[ "${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE+x}" != x ] || exit 77' \
+    '[ "${CLOUDFLARE_API_TOKEN_VALUE+x}" != x ] || exit 78' \
+    '[ "${_alchemy_jwt_request_proof_key_captured_environment_value+x}" != x ] || exit 79' \
+    '[ "${_cloudflare_api_token_captured_environment_value+x}" != x ] || exit 80' \
+    '[ "${LOGIN_KEYCHAIN_SECRET_VALUE+x}" != x ] || exit 81' \
+    '[ "${login_keychain_output_with_sentinel+x}" != x ] || exit 82' \
+    '[ "${alchemy_key_snapshot+x}" != x ] || exit 83' \
+    '[ "${_asc_cloudflare_api_token_snapshot+x}" != x ] || exit 84' \
+    "exec \"$actual_jq\" \"\$@\"" \
+    > "$mock_bin/jq"
+printf '%s\n' \
+    '#!/bin/sh' \
     'if [ "${1:-}" = "--version" ]; then' \
+    '    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY+x}" != x ] || exit 75' \
+    '    [ "${CLOUDFLARE_API_TOKEN+x}" != x ] || exit 76' \
+    '    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE+x}" != x ] || exit 77' \
+    '    [ "${CLOUDFLARE_API_TOKEN_VALUE+x}" != x ] || exit 78' \
+    '    [ "${_alchemy_jwt_request_proof_key_captured_environment_value+x}" != x ] || exit 79' \
+    '    [ "${_cloudflare_api_token_captured_environment_value+x}" != x ] || exit 80' \
+    '    [ "${LOGIN_KEYCHAIN_SECRET_VALUE+x}" != x ] || exit 81' \
+    '    [ "${login_keychain_output_with_sentinel+x}" != x ] || exit 82' \
+    '    [ "${alchemy_key_snapshot+x}" != x ] || exit 83' \
+    '    [ "${_asc_cloudflare_api_token_snapshot+x}" != x ] || exit 84' \
     '    printf "%s\n" 11.16.0' \
     '    exit 0' \
     'fi' \
     'if [ "${1:-}" = run ] && [ "${2:-}" = verify:release ]; then' \
+    "    [ \"\${ALCHEMY_JWT_REQUEST_PROOF_KEY:-}\" = \"$request_proof_key_value\" ] || exit 75" \
+    "    [ \"\${CLOUDFLARE_API_TOKEN:-}\" = \"$cloudflare_token_value\" ] || exit 76" \
+    '    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE+x}" != x ] || exit 77' \
+    '    [ "${CLOUDFLARE_API_TOKEN_VALUE+x}" != x ] || exit 78' \
+    '    [ "${_alchemy_jwt_request_proof_key_captured_environment_value+x}" != x ] || exit 79' \
+    '    [ "${_cloudflare_api_token_captured_environment_value+x}" != x ] || exit 80' \
+    '    [ "${LOGIN_KEYCHAIN_SECRET_VALUE+x}" != x ] || exit 81' \
+    '    [ "${login_keychain_output_with_sentinel+x}" != x ] || exit 82' \
+    '    [ "${alchemy_key_snapshot+x}" != x ] || exit 83' \
+    '    [ "${_asc_cloudflare_api_token_snapshot+x}" != x ] || exit 84' \
     '    printf "%s\n" "worker verify $*" >> "$MOCK_ASC_LOG"' \
     '    if [ -n "${MOCK_WORKER_VERIFY_MUTATION_ROOT:-}" ]; then' \
     '        mutated_ipa=$(/usr/bin/find "$MOCK_WORKER_VERIFY_MUTATION_ROOT" -type f -name '"'"'*.ipa'"'"' -print -quit)' \
@@ -589,19 +636,26 @@ printf '%s\n' \
     'fi' \
     'exit 64' \
     > "$mock_bin/npm"
-chmod 700 "$mock_bin/node" "$mock_bin/npm"
+chmod 700 "$mock_bin/node" "$mock_bin/npm" "$mock_bin/jq"
 
-cloudflare_token_directory="$test_root/cloudflare token directory"
-cloudflare_token_file="$cloudflare_token_directory/token"
-mkdir "$cloudflare_token_directory"
-chmod 700 "$cloudflare_token_directory"
-printf '%040d' 0 > "$cloudflare_token_file"
-chmod 600 "$cloudflare_token_file"
-unset CLOUDFLARE_API_TOKEN
-export CLOUDFLARE_API_TOKEN_FILE="$cloudflare_token_file"
+CLOUDFLARE_API_TOKEN="$cloudflare_token_value"
+export CLOUDFLARE_API_TOKEN
 
 printf '%s\n' \
     '#!/bin/sh' \
+    'if [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY+x}" = x ] ||' \
+    '    [ "${CLOUDFLARE_API_TOKEN+x}" = x ] ||' \
+    '    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE+x}" = x ] ||' \
+    '    [ "${CLOUDFLARE_API_TOKEN_VALUE+x}" = x ] ||' \
+    '    [ "${_alchemy_jwt_request_proof_key_captured_environment_value+x}" = x ] ||' \
+    '    [ "${_cloudflare_api_token_captured_environment_value+x}" = x ] ||' \
+    '    [ "${LOGIN_KEYCHAIN_SECRET_VALUE+x}" = x ] ||' \
+    '    [ "${login_keychain_output_with_sentinel+x}" = x ] ||' \
+    '    [ "${alchemy_key_snapshot+x}" = x ] ||' \
+    '    [ "${_asc_cloudflare_api_token_snapshot+x}" = x ]' \
+    'then' \
+    '    exit 65' \
+    'fi' \
     'printf "%s" "${1:-}" >> "$MOCK_ASC_LOG"' \
     'shift || true' \
     'for argument do printf " %s" "$argument" >> "$MOCK_ASC_LOG"; done' \
@@ -621,7 +675,7 @@ HOME="$mock_home" \
     PATH="$mock_bin:$PATH" \
     MOCK_ASC_LOG="$mock_asc_log" \
     ASC_ARTIFACTS_DIR="$test_root/publish artifacts" \
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$request_proof_key_file" \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY="$request_proof_key_value" \
     "$publish_script" IOS > "$publish_stdout" 2> "$publish_stderr"
 publish_status=$?
 set -e
@@ -669,6 +723,19 @@ printf '%s\n' \
     '    done' \
     '    return 1' \
     '}' \
+    'credentials_are_scrubbed() {' \
+    '    [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY+x}" != x ] &&' \
+    '        [ "${CLOUDFLARE_API_TOKEN+x}" != x ] &&' \
+    '        [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE+x}" != x ] &&' \
+    '        [ "${CLOUDFLARE_API_TOKEN_VALUE+x}" != x ] &&' \
+    '        [ "${_alchemy_jwt_request_proof_key_captured_environment_value+x}" != x ] &&' \
+    '        [ "${_cloudflare_api_token_captured_environment_value+x}" != x ] &&' \
+    '        [ "${LOGIN_KEYCHAIN_SECRET_VALUE+x}" != x ] &&' \
+    '        [ "${login_keychain_output_with_sentinel+x}" != x ] &&' \
+    '        [ "${alchemy_key_snapshot+x}" != x ] &&' \
+    '        [ "${_asc_cloudflare_api_token_snapshot+x}" != x ]' \
+    '}' \
+    "expected_request_proof_key='$request_proof_key_value'" \
     'separator=""' \
     'for argument do' \
     '    printf "%s%s" "$separator" "$argument" >> "$MOCK_ASC_LOG"' \
@@ -679,21 +746,33 @@ printf '%s\n' \
     'subcommand=${2:-}' \
     'case "$command_name:$subcommand" in' \
     '    builds:info)' \
+    '        credentials_are_scrubbed || exit 65' \
     '        exit 1' \
     '        ;;' \
     '    xcode:archive)' \
+    '        [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY:-}" = "$expected_request_proof_key" ] || exit 66' \
+    '        [ "${CLOUDFLARE_API_TOKEN+x}" != x ] || exit 67' \
+    '        [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE+x}" != x ] || exit 68' \
+    '        [ "${CLOUDFLARE_API_TOKEN_VALUE+x}" != x ] || exit 69' \
+    '        [ "${_alchemy_jwt_request_proof_key_captured_environment_value+x}" != x ] || exit 70' \
+    '        [ "${_cloudflare_api_token_captured_environment_value+x}" != x ] || exit 71' \
+    '        [ "${LOGIN_KEYCHAIN_SECRET_VALUE+x}" != x ] || exit 72' \
+    '        [ "${login_keychain_output_with_sentinel+x}" != x ] || exit 73' \
+    '        [ "${alchemy_key_snapshot+x}" != x ] || exit 74' \
+    '        [ "${_asc_cloudflare_api_token_snapshot+x}" != x ] || exit 75' \
     '        archive_path=$(argument_value --archive-path "$@")' \
     '        app="$archive_path/Products/Applications/Big Wallet.app"' \
     '        extension="$app/PlugIns/Safari iOS.appex"' \
     '        mkdir -p "$extension"' \
     '        printf "%s" archive > "$app/Info.plist"' \
-    '        cp "$ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE" "$app/AlchemyJWTRequestProofKey"' \
-    '        cp "$ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE" "$extension/AlchemyJWTRequestProofKey"' \
+    '        printf "%s" "$ALCHEMY_JWT_REQUEST_PROOF_KEY" > "$app/AlchemyJWTRequestProofKey"' \
+    '        printf "%s" "$ALCHEMY_JWT_REQUEST_PROOF_KEY" > "$extension/AlchemyJWTRequestProofKey"' \
     '        chmod 0644 "$app/AlchemyJWTRequestProofKey" "$extension/AlchemyJWTRequestProofKey"' \
     '        returned_archive_path=${MOCK_ARCHIVE_RETURN_PATH:-$archive_path}' \
     '        printf "{\"archive_path\":\"%s\"}\n" "$returned_archive_path"' \
     '        ;;' \
     '    xcode:export)' \
+    '        credentials_are_scrubbed || exit 65' \
     '        if [ "${MOCK_PUBLISH_OUTCOME:-failure}" = pre-upload-failure ]; then' \
     '            exit 71' \
     '        fi' \
@@ -701,10 +780,12 @@ printf '%s\n' \
     '        ipa_source="$ipa_path.source"' \
     '        app="$ipa_source/Payload/Big Wallet.app"' \
     '        extension="$app/PlugIns/Safari iOS.appex"' \
+    '        archive_path=$(argument_value --archive-path "$@")' \
+    '        archive_app="$archive_path/Products/Applications/Big Wallet.app"' \
     '        mkdir -p "$extension"' \
     '        printf "%s" export > "$app/Info.plist"' \
-    '        cp "$ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE" "$app/AlchemyJWTRequestProofKey"' \
-    '        cp "$ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE" "$extension/AlchemyJWTRequestProofKey"' \
+    '        cp "$archive_app/AlchemyJWTRequestProofKey" "$app/AlchemyJWTRequestProofKey"' \
+    '        cp "$archive_app/PlugIns/Safari iOS.appex/AlchemyJWTRequestProofKey" "$extension/AlchemyJWTRequestProofKey"' \
     '        chmod 0644 "$app/AlchemyJWTRequestProofKey" "$extension/AlchemyJWTRequestProofKey"' \
     '        /usr/bin/ditto -c -k "$ipa_source" "$ipa_path"' \
     '        rm -rf "$ipa_source"' \
@@ -712,6 +793,7 @@ printf '%s\n' \
     '        printf "{\"ipa_path\":\"%s\"}\n" "$returned_ipa_path"' \
     '        ;;' \
     '    builds:upload)' \
+    '        credentials_are_scrubbed || exit 65' \
     '        case "${MOCK_PUBLISH_OUTCOME:-failure}" in' \
     '            success)' \
     '                printf "%s\n" '"'"'{"id":"mock-build-id"}'"'" \
@@ -758,7 +840,7 @@ HOME="$mock_home" \
     MOCK_ARCHIVE_RETURN_PATH="$unrequested_archive" \
     MOCK_PUBLISH_OUTCOME=success \
     ASC_ARTIFACTS_DIR="$archive_mismatch_root" \
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$request_proof_key_file" \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY="$request_proof_key_value" \
     "$publish_script" IOS \
     > "$archive_mismatch_stdout" \
     2> "$archive_mismatch_stderr"
@@ -814,7 +896,7 @@ HOME="$mock_home" \
     MOCK_IPA_RETURN_PATH="$unrequested_ipa" \
     MOCK_PUBLISH_OUTCOME=success \
     ASC_ARTIFACTS_DIR="$ipa_mismatch_root" \
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$request_proof_key_file" \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY="$request_proof_key_value" \
     "$publish_script" IOS \
     > "$ipa_mismatch_stdout" \
     2> "$ipa_mismatch_stderr"
@@ -854,7 +936,7 @@ HOME="$mock_home" \
     MOCK_PUBLISH_OUTCOME=success \
     MOCK_WORKER_VERIFY_OUTCOME=failure \
     ASC_ARTIFACTS_DIR="$worker_guard_root" \
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$request_proof_key_file" \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY="$request_proof_key_value" \
     "$publish_script" IOS \
     > "$worker_guard_stdout" \
     2> "$worker_guard_stderr"
@@ -892,7 +974,7 @@ HOME="$mock_home" \
     MOCK_PUBLISH_OUTCOME=success \
     MOCK_WORKER_VERIFY_MUTATION_ROOT="$artifact_mutation_root" \
     ASC_ARTIFACTS_DIR="$artifact_mutation_root" \
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$request_proof_key_file" \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY="$request_proof_key_value" \
     "$publish_script" IOS \
     > "$artifact_mutation_stdout" \
     2> "$artifact_mutation_stderr"
@@ -929,7 +1011,7 @@ HOME="$mock_home" \
     MOCK_ASC_LOG="$failed_publish_log" \
     MOCK_PUBLISH_OUTCOME=pre-upload-failure \
     ASC_ARTIFACTS_DIR="$failed_publish_root" \
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$request_proof_key_file" \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY="$request_proof_key_value" \
     "$publish_script" IOS \
     > "$failed_publish_stdout" \
     2> "$failed_publish_stderr"
@@ -966,7 +1048,7 @@ HOME="$mock_home" \
     MOCK_ASC_LOG="$ambiguous_publish_log" \
     MOCK_PUBLISH_OUTCOME=ambiguous-upload \
     ASC_ARTIFACTS_DIR="$ambiguous_publish_root" \
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$request_proof_key_file" \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY="$request_proof_key_value" \
     "$publish_script" IOS \
     > "$ambiguous_publish_stdout" \
     2> "$ambiguous_publish_stderr"
@@ -1004,7 +1086,7 @@ HOME="$mock_home" \
     MOCK_PUBLISH_OUTCOME=accepted-without-id \
     ASC_BUILD_LOOKUP_ATTEMPTS=1 \
     ASC_ARTIFACTS_DIR="$accepted_publish_root" \
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$request_proof_key_file" \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY="$request_proof_key_value" \
     "$publish_script" IOS \
     > "$accepted_publish_stdout" \
     2> "$accepted_publish_stderr"
@@ -1041,7 +1123,7 @@ HOME="$mock_home" \
     MOCK_PUBLISH_OUTCOME=success \
     ASC_ARTIFACTS_DIR="$successful_publish_root" \
     ASC_REPORTS_DIR="$successful_publish_reports" \
-    ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$request_proof_key_file" \
+    ALCHEMY_JWT_REQUEST_PROOF_KEY="$request_proof_key_value" \
     "$publish_script" IOS \
     > "$successful_publish_stdout" \
     2> "$successful_publish_stderr"
@@ -1068,10 +1150,11 @@ successful_release_directory=$(dirname "$artifact_path")
     fail "successful publication retained unexpected files"
 grep -F "builds upload " "$successful_publish_log" >/dev/null ||
     fail "mock successful publication did not reach upload"
-grep -F \
-    "ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE=$request_proof_key_file" \
-    "$successful_publish_log" >/dev/null ||
-    fail "publish did not preserve the request-proof key path as one build setting"
+if grep -F "ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE" \
+    "$successful_publish_log" >/dev/null
+then
+    fail "publish still passed a request-proof key file build setting"
+fi
 
 successful_publish_receipt="$successful_publish_reports/validated-builds/IOS.json"
 [ -f "$successful_publish_receipt" ] ||

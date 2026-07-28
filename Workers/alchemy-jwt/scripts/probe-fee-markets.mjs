@@ -68,12 +68,13 @@ function usage() {
     "",
     "Options:",
     "  --catalog PATH              NetworkCatalog.json path",
-    "  --app-proof-key-file PATH   Protected app proof-key file",
     "  --expected-kid KID          Expected Alchemy JWT key identifier",
     `  --concurrency N             Parallel networks, 1-${MAX_CONCURRENCY} (default: ${DEFAULT_CONCURRENCY})`,
     `  --timeout-ms N              Per-request timeout, 1-${MAX_TIMEOUT_MS} (default: ${DEFAULT_TIMEOUT_MS})`,
     "  --output PATH               Write an exclusive catalog candidate",
     "  --help                      Show this help",
+    "",
+    "ALCHEMY_JWT_REQUEST_PROOF_KEY is read from the environment or login Keychain.",
   ].join("\n");
 }
 
@@ -91,7 +92,6 @@ function parsePositiveInteger(value, optionName, maximum) {
 export function parseProbeArguments(arguments_) {
   const options = {
     catalogPath: defaultCatalogPath,
-    appProofKeyFile: undefined,
     expectedKid: undefined,
     concurrency: DEFAULT_CONCURRENCY,
     timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -100,7 +100,6 @@ export function parseProbeArguments(arguments_) {
   };
   const valueOptions = new Map([
     ["--catalog", "catalogPath"],
-    ["--app-proof-key-file", "appProofKeyFile"],
     ["--expected-kid", "expectedKid"],
     ["--concurrency", "concurrency"],
     ["--timeout-ms", "timeoutMs"],
@@ -145,13 +144,7 @@ export function parseProbeArguments(arguments_) {
     }
   }
 
-  const hasProofKey = options.appProofKeyFile !== undefined;
   const hasExpectedKid = options.expectedKid !== undefined;
-  if (hasProofKey !== hasExpectedKid) {
-    throw fail(
-      "--app-proof-key-file and --expected-kid must be provided together",
-    );
-  }
   if (
     hasExpectedKid &&
     !/^[\u0021-\u007e]{1,256}$/u.test(options.expectedKid)
@@ -662,13 +655,11 @@ async function acquireAlchemyAuthorization(
     proofKeyReader,
   },
 ) {
-  if (options.appProofKeyFile === undefined) {
+  if (options.expectedKid === undefined) {
     return undefined;
   }
   const nowSeconds = Math.floor(nowMilliseconds / 1_000);
-  const requestProofKey = await proofKeyReader(
-    resolve(options.appProofKeyFile),
-  );
+  const requestProofKey = await proofKeyReader();
   let signedRequest;
   try {
     signedRequest = createSignedBrokerRequest(requestProofKey, {
@@ -969,7 +960,7 @@ export async function executeFeeMarketProbe(
   if (
     options.outputPath !== undefined &&
     hasAlchemyRecords &&
-    options.appProofKeyFile === undefined
+    options.expectedKid === undefined
   ) {
     throw fail(
       "--output requires Alchemy authorization for this catalog",

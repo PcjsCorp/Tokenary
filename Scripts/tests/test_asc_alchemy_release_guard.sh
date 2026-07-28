@@ -39,6 +39,127 @@ expect_failure() {
 
 source "$common_script"
 
+asc_entrypoint_count=0
+for asc_entrypoint in "$repository_directory"/Scripts/asc/*.sh; do
+  [[ "${asc_entrypoint##*/}" != "common.sh" ]] || continue
+  asc_entrypoint_count=$((asc_entrypoint_count + 1))
+  awk '
+    index($0, "set +x") && xtrace_line == 0 {
+      xtrace_line = NR
+    }
+    index($0, "set +a") && allexport_line == 0 {
+      allexport_line = NR
+    }
+    index($0, "source \"$" "_asc_entrypoint_directory/common.sh\"") {
+      source_line = NR
+    }
+    index($0, "$(") && source_line == 0 {
+      early_subprocess = 1
+    }
+    (index($0, "`") ||
+     index($0, "<(") ||
+     index($0, ">(")) && source_line == 0 {
+      early_subprocess = 1
+    }
+    END {
+      if (xtrace_line == 0 ||
+          allexport_line == 0 ||
+          source_line == 0 ||
+          xtrace_line >= source_line ||
+          allexport_line >= source_line ||
+          early_subprocess) {
+        exit 1
+      }
+    }
+  ' "$asc_entrypoint" \
+    || fail "${asc_entrypoint##*/} does not use the child-free credential bootstrap"
+done
+[[ "$asc_entrypoint_count" -eq 13 ]] \
+  || fail "expected exactly 13 ASC entrypoints to use the credential bootstrap"
+unset asc_entrypoint_count
+
+bootstrap_mock_bin="$test_root/bootstrap mock bin"
+bootstrap_environment_log="$logs_directory/bootstrap-child.env"
+bootstrap_trace_log="$logs_directory/bootstrap-xtrace.stderr"
+bootstrap_proof_secret=ASC_BOOTSTRAP_PROOF_SECRET_MUST_NOT_LEAK
+bootstrap_cloudflare_secret=ASC_BOOTSTRAP_CLOUDFLARE_SECRET_MUST_NOT_LEAK
+mkdir -p "$bootstrap_mock_bin"
+printf '%s\n' \
+  '#!/bin/sh' \
+  '/usr/bin/env > "$ASC_BOOTSTRAP_ENVIRONMENT_LOG"' \
+  'exec /usr/bin/dirname "$@"' \
+  >"$bootstrap_mock_bin/dirname"
+chmod 700 "$bootstrap_mock_bin/dirname"
+
+set +e
+/usr/bin/env \
+  PATH="$bootstrap_mock_bin:$PATH" \
+  ASC_BOOTSTRAP_ENVIRONMENT_LOG="$bootstrap_environment_log" \
+  ALCHEMY_JWT_REQUEST_PROOF_KEY="$bootstrap_proof_secret" \
+  ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE="$bootstrap_proof_secret" \
+  ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT="$bootstrap_proof_secret" \
+  _alchemy_jwt_request_proof_key_captured_environment_value="$bootstrap_proof_secret" \
+  _alchemy_jwt_request_proof_key_cache_valid="$bootstrap_proof_secret" \
+  LOGIN_KEYCHAIN_SECRET_VALUE="$bootstrap_proof_secret" \
+  login_keychain_output_with_sentinel="$bootstrap_proof_secret" \
+  login_keychain_output="$bootstrap_proof_secret" \
+  alchemy_key_snapshot="$bootstrap_proof_secret" \
+  CLOUDFLARE_API_TOKEN="$bootstrap_cloudflare_secret" \
+  CLOUDFLARE_API_TOKEN_VALUE="$bootstrap_cloudflare_secret" \
+  _cloudflare_api_token_captured_environment_value="$bootstrap_cloudflare_secret" \
+  _asc_cloudflare_api_token_snapshot="$bootstrap_cloudflare_secret" \
+  _asc_cloudflare_api_token_selection="$bootstrap_cloudflare_secret" \
+  _asc_cloudflare_api_token_cache_valid="$bootstrap_cloudflare_secret" \
+  snapshot="$bootstrap_cloudflare_secret" \
+  public_assignment_present="$bootstrap_cloudflare_secret" \
+  SHELLOPTS=allexport:xtrace \
+  /bin/bash -c "source '$common_script'" \
+  >"$logs_directory/bootstrap-xtrace.stdout" \
+  2>"$bootstrap_trace_log"
+bootstrap_status=$?
+set -e
+[[ "$bootstrap_status" -eq 0 ]] \
+  || fail "the ASC child-free credential bootstrap failed"
+[[ -s "$bootstrap_environment_log" ]] \
+  || fail "the earliest ASC dirname child was not intercepted"
+for bootstrap_secret in \
+  "$bootstrap_proof_secret" \
+  "$bootstrap_cloudflare_secret"
+do
+  if grep -F "$bootstrap_secret" \
+    "$bootstrap_environment_log" "$bootstrap_trace_log" >/dev/null
+  then
+    fail "the ASC credential bootstrap exposed a release credential"
+  fi
+done
+unset bootstrap_secret bootstrap_status
+for bootstrap_private_name in \
+  ALCHEMY_JWT_REQUEST_PROOF_KEY \
+  ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE \
+  ALCHEMY_JWT_REQUEST_PROOF_KEY_FINGERPRINT \
+  _alchemy_jwt_request_proof_key_captured_environment_value \
+  _alchemy_jwt_request_proof_key_cache_valid \
+  LOGIN_KEYCHAIN_SECRET_VALUE \
+  login_keychain_output_with_sentinel \
+  login_keychain_output \
+  alchemy_key_snapshot \
+  CLOUDFLARE_API_TOKEN \
+  CLOUDFLARE_API_TOKEN_VALUE \
+  _cloudflare_api_token_captured_environment_value \
+  _asc_cloudflare_api_token_snapshot \
+  _asc_cloudflare_api_token_selection \
+  _asc_cloudflare_api_token_cache_valid \
+  snapshot \
+  public_assignment_present
+do
+  if grep -E "^${bootstrap_private_name}=" \
+    "$bootstrap_environment_log" >/dev/null
+  then
+    fail "$bootstrap_private_name reached the earliest ASC child"
+  fi
+done
+unset bootstrap_private_name
+
 preferred_tool_directory="$test_root/preferred tools"
 mkdir -p "$preferred_tool_directory"
 printf '%s\n' '#!/bin/sh' 'exit 0' >"$preferred_tool_directory/node"
@@ -200,36 +321,121 @@ expect_failure receipt-missing \
   synthetic-build-id \
   "$proof_fingerprint"
 
-token_directory="$test_root/token directory"
-token_file="$token_directory/cloudflare token"
-mkdir "$token_directory"
-chmod 700 "$token_directory"
-printf '%040d' 0 >"$token_file"
-chmod 600 "$token_file"
-CLOUDFLARE_API_TOKEN_FILE="$token_file"
-load_cloudflare_api_token_file
+unset CLOUDFLARE_API_TOKEN
+CLOUDFLARE_API_TOKEN="$(printf '%040d' 0)"
+export CLOUDFLARE_API_TOKEN
+load_cloudflare_api_token
 [[ "${#CLOUDFLARE_API_TOKEN_VALUE}" -eq 40 ]] \
-  || fail "a valid Cloudflare token file was not loaded"
+  || fail "a valid Cloudflare token environment value was not loaded"
 if /usr/bin/env | grep -F "$CLOUDFLARE_API_TOKEN_VALUE" >/dev/null; then
   fail "the loaded Cloudflare API token was exported to unrelated child processes"
 fi
+[[ -z "${CLOUDFLARE_API_TOKEN:-}" ]] \
+  || fail "the source Cloudflare API token remained in the environment"
+cached_cloudflare_token="$CLOUDFLARE_API_TOKEN_VALUE"
+export CLOUDFLARE_API_TOKEN_VALUE
+CLOUDFLARE_API_TOKEN="$(printf '%040d' 1)"
+export CLOUDFLARE_API_TOKEN
+load_cloudflare_api_token
+[[ "$CLOUDFLARE_API_TOKEN_VALUE" == "$cached_cloudflare_token" ]] \
+  || fail "the validated Cloudflare API token was not cached for the release workflow"
+[[ "${CLOUDFLARE_API_TOKEN+x}" != x ]] \
+  || fail "a cached Cloudflare token reload did not scrub the public token"
+if /usr/bin/env | grep -E '^CLOUDFLARE_API_TOKEN_VALUE=' >/dev/null; then
+  fail "a cached Cloudflare token reload retained a hostile export attribute"
+fi
+unset cached_cloudflare_token
 unset CLOUDFLARE_API_TOKEN_VALUE
 
-expect_failure raw-cloudflare-token-environment /usr/bin/env \
-  CLOUDFLARE_API_TOKEN=synthetic-raw-token-value \
-  CLOUDFLARE_API_TOKEN_FILE="$token_file" \
-  bash -c "source '$common_script'; load_cloudflare_api_token_file"
+(
+  CLOUDFLARE_API_TOKEN="$(printf '%040d' 1)"
+  export CLOUDFLARE_API_TOKEN
+  source "$common_script"
+  CLOUDFLARE_API_TOKEN_VALUE="$(printf '%040d' 3)"
+  export CLOUDFLARE_API_TOKEN_VALUE
+  CLOUDFLARE_API_TOKEN="$(printf '%040d' 2)"
+  load_cloudflare_api_token
+  [[ "$CLOUDFLARE_API_TOKEN_VALUE" == "$(printf '%040d' 2)" ]]
+) || fail "a post-source Cloudflare token assignment did not take precedence"
 
-chmod 644 "$token_file"
-expect_failure cloudflare-token-unsafe-mode bash -c \
-  "source '$common_script'; CLOUDFLARE_API_TOKEN_FILE='$token_file'; load_cloudflare_api_token_file"
-chmod 600 "$token_file"
+expect_failure empty-post-source-cloudflare-token /usr/bin/env \
+  HOME="$test_root/no-login-keychain" \
+  CLOUDFLARE_API_TOKEN="$(printf '%040d' 1)" \
+  bash -c "source '$common_script'; alchemy_jwt_request_proof_key_run_keychain_supervisor() { return 1; }; CLOUDFLARE_API_TOKEN=; load_cloudflare_api_token"
+grep -F "is unavailable in the environment and login Keychain" \
+  "$logs_directory/empty-post-source-cloudflare-token.stderr" >/dev/null \
+  || fail "an explicit empty Cloudflare token did not select Keychain"
+expect_failure malformed-post-source-cloudflare-token /usr/bin/env \
+  HOME="$test_root/no-login-keychain" \
+  CLOUDFLARE_API_TOKEN="$(printf '%040d' 1)" \
+  bash -c "source '$common_script'; CLOUDFLARE_API_TOKEN=too-short; load_cloudflare_api_token"
+grep -F "must contain 20 to 512 characters" \
+  "$logs_directory/malformed-post-source-cloudflare-token.stderr" >/dev/null \
+  || fail "a malformed non-empty Cloudflare token did not fail validation"
+expect_failure malformed-post-source-cloudflare-cache /usr/bin/env \
+  bash -c "source '$common_script'; export CLOUDFLARE_API_TOKEN_VALUE=too-short _asc_cloudflare_api_token_cache_valid=1; load_cloudflare_api_token"
+grep -F "must contain 20 to 512 characters" \
+  "$logs_directory/malformed-post-source-cloudflare-cache.stderr" >/dev/null \
+  || fail "a malformed post-source Cloudflare cache did not fail validation"
+expect_failure malformed-cloudflare-token-environment /usr/bin/env \
+  CLOUDFLARE_API_TOKEN=too-short \
+  bash -c "source '$common_script'; load_cloudflare_api_token"
+expect_failure missing-cloudflare-token-and-keychain /usr/bin/env \
+  HOME="$test_root/no-login-keychain" \
+  CLOUDFLARE_API_TOKEN= \
+  bash -c "source '$common_script'; alchemy_jwt_request_proof_key_run_keychain_supervisor() { return 1; }; load_cloudflare_api_token"
+
+hostile_cloudflare_export_probe="$logs_directory/hostile-cloudflare-export.env"
+(
+  CLOUDFLARE_API_TOKEN="$(printf '%040d' 3)"
+  CLOUDFLARE_API_TOKEN_VALUE=hostile-cache
+  _cloudflare_api_token_captured_environment_value=hostile-private-cache
+  _asc_cloudflare_api_token_snapshot=hostile-exported-scratch
+  _asc_cloudflare_api_token_selection=hostile-exported-scratch
+  _asc_cloudflare_api_token_cache_valid=hostile-exported-scratch
+  snapshot=hostile-exported-scratch
+  public_assignment_present=hostile-exported-scratch
+  export CLOUDFLARE_API_TOKEN \
+    CLOUDFLARE_API_TOKEN_VALUE \
+    _cloudflare_api_token_captured_environment_value \
+    _asc_cloudflare_api_token_snapshot \
+    _asc_cloudflare_api_token_selection \
+    _asc_cloudflare_api_token_cache_valid \
+    snapshot \
+    public_assignment_present
+  source "$common_script"
+  [[ "${CLOUDFLARE_API_TOKEN+x}" != x ]] \
+    || fail "the source Cloudflare token remained public"
+  [[ "${CLOUDFLARE_API_TOKEN_VALUE+x}" != x ]] \
+    || fail "a hostile Cloudflare cache survived source bootstrap"
+  load_cloudflare_api_token
+  /usr/bin/env >"$hostile_cloudflare_export_probe"
+)
+for hostile_cloudflare_variable in \
+  CLOUDFLARE_API_TOKEN \
+  CLOUDFLARE_API_TOKEN_VALUE \
+  _cloudflare_api_token_captured_environment_value \
+  _asc_cloudflare_api_token_snapshot \
+  _asc_cloudflare_api_token_selection \
+  _asc_cloudflare_api_token_cache_valid \
+  snapshot \
+  public_assignment_present
+do
+  if grep -E "^${hostile_cloudflare_variable}=" \
+    "$hostile_cloudflare_export_probe" >/dev/null
+  then
+    fail "$hostile_cloudflare_variable retained a hostile export attribute"
+  fi
+done
+if grep -F "$(printf '%040d' 3)" "$hostile_cloudflare_export_probe" >/dev/null; then
+  fail "the loaded Cloudflare token was exported through hostile scratch state"
+fi
 
 awk '
   index($0, "Scripts/assert_bundled_alchemy_jwt_request_proof_key.sh") {
     artifact_validator_line = NR
   }
-  index($0, "run_alchemy_worker_release_verification \"$proof_key_file\"") {
+  index($0, "run_alchemy_worker_release_verification") {
     verifier_line = NR
   }
   index($0, "upload_attempted=true") {
@@ -264,7 +470,7 @@ awk '
   index($0, "Scripts/assert_bundled_alchemy_jwt_request_proof_key.sh") {
     artifact_validator_line = NR
   }
-  index($0, "run_alchemy_worker_release_verification \"$proof_key_file\"") {
+  index($0, "run_alchemy_worker_release_verification") {
     verifier_line = NR
   }
   index($0, "version_id=\"$(Scripts/asc/ensure_version.sh") {
@@ -308,8 +514,7 @@ do
 done
 for required_option in \
   '--expected-kid' \
-  '--expected-version' \
-  '--app-proof-key-file'
+  '--expected-version'
 do
   [[ "$(grep -F -c -- "$required_option" "$verifier_wrapper")" -eq 1 ]] \
     || fail "the ASC verifier wrapper does not pass exactly one $required_option"
@@ -344,8 +549,9 @@ for relative_file in \
   Scripts/asc/common.sh \
   Scripts/asc/ensure_version.sh \
   Scripts/asc/submit_review.sh \
-  Scripts/validate_alchemy_jwt_request_proof_key_file.sh \
+  Scripts/validate_alchemy_jwt_request_proof_key.sh \
   Scripts/alchemy_jwt_request_proof_key_common.sh \
+  Scripts/alchemy_login_keychain_supervisor.pl \
   Scripts/assert_no_bundled_alchemy_key.sh \
   Scripts/assert_bundled_alchemy_jwt_request_proof_key.sh \
   Wallet.xcodeproj/project.pbxproj \
@@ -397,7 +603,7 @@ set +e
 PATH="$mock_bin:$PATH" \
   MOCK_ASC_LOG="$mock_asc_log" \
   ASC_RUNTIME_ROOT="$test_root/missing receipt runtime" \
-  ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$fixture_key_file" \
+  ALCHEMY_JWT_REQUEST_PROOF_KEY="$fixture_key" \
   "$submit_fixture/Scripts/asc/submit_review.sh" IOS \
   >"$missing_receipt_stdout" \
   2>"$missing_receipt_stderr"
@@ -462,27 +668,21 @@ write_alchemy_release_receipt \
   "$fixture_fingerprint" \
   "$submit_artifact_sha256"
 
-submit_token_directory="$test_root/submit token directory"
-submit_token_file="$submit_token_directory/cloudflare token"
-mkdir "$submit_token_directory"
-chmod 700 "$submit_token_directory"
-printf '%040d' 0 >"$submit_token_file"
-chmod 600 "$submit_token_file"
+submit_cloudflare_token="$(printf '%040d' 0)"
 
 worker_failure_asc_log="$logs_directory/worker-failure-submit.asc"
 worker_failure_npm_log="$logs_directory/worker-failure-submit.npm"
 worker_failure_stdout="$logs_directory/worker-failure-submit.stdout"
 worker_failure_stderr="$logs_directory/worker-failure-submit.stderr"
-unset CLOUDFLARE_API_TOKEN
 set +e
 PATH="$mock_bin:$PATH" \
   MOCK_ASC_LOG="$worker_failure_asc_log" \
   MOCK_NPM_LOG="$worker_failure_npm_log" \
   ASC_RUNTIME_ROOT="$submit_runtime" \
-  CLOUDFLARE_API_TOKEN_FILE="$submit_token_file" \
+  CLOUDFLARE_API_TOKEN="$submit_cloudflare_token" \
   ALCHEMY_JWT_EXPECTED_KID="$tracked_kid" \
   ALCHEMY_JWT_EXPECTED_WORKER_VERSION="$fixture_worker_version" \
-  ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="$fixture_key_file" \
+  ALCHEMY_JWT_REQUEST_PROOF_KEY="$fixture_key" \
   "$submit_fixture/Scripts/asc/submit_review.sh" \
     IOS \
     validated-build-id \

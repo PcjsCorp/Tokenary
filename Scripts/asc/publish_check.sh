@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
+set +x
+set +a
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+unset _asc_entrypoint_source _asc_entrypoint_directory
+_asc_entrypoint_source="${BASH_SOURCE[0]}"
+case "$_asc_entrypoint_source" in
+  */*) _asc_entrypoint_directory="${_asc_entrypoint_source%/*}" ;;
+  *) _asc_entrypoint_directory="." ;;
+esac
+source "$_asc_entrypoint_directory/common.sh"
+unset _asc_entrypoint_source _asc_entrypoint_directory
 . "$REPO_ROOT/Scripts/inpage_provider_toolchain.sh"
 
 require_cmd xcodebuild

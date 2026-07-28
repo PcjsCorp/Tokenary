@@ -134,16 +134,12 @@ async function uploadOptions({
   await chmod(directory, 0o700);
   const secretsFile = join(directory, "secrets.json");
   const publicKeyFile = join(directory, "public.pem");
-  const appProofKeyFile = join(directory, "app-proof.key");
   const secretsBytes = Buffer.from(JSON.stringify({
     ALCHEMY_JWT_PRIVATE_KEY: privatePem,
     ALCHEMY_JWT_REQUEST_PROOF_KEY: REQUEST_PROOF_KEY,
   }));
   await writeFile(secretsFile, secretsBytes, { mode: 0o600 });
   await writeFile(publicKeyFile, publicPem, { mode: 0o644 });
-  await writeFile(appProofKeyFile, `${REQUEST_PROOF_KEY}\n`, {
-    mode: 0o600,
-  });
   const wranglerConfigPath = join(directory, "wrangler.jsonc");
   const configBytes = Buffer.from(
     wranglerConfig ?? JSON.stringify({
@@ -168,7 +164,6 @@ async function uploadOptions({
   return {
     secretsFile,
     publicKeyFile,
-    appProofKeyFile,
     expectedKid: EXPECTED_KID,
     tag: "validated-upload-test",
     message: "Validated upload test",
@@ -185,6 +180,11 @@ function uploadDependencies(options, overrides = {}) {
     wranglerConfigPath: options.wranglerConfigPath,
     expectedRequestProofKeyFingerprint:
       REQUEST_PROOF_KEY_FINGERPRINT,
+    requestProofKeyReader: async () =>
+      Buffer.from(REQUEST_PROOF_KEY, "base64url"),
+    cloudflareEnvironmentLoader: async () => ({
+      CLOUDFLARE_API_TOKEN: "test-auth-token",
+    }),
     uploadedVersionReader: async () => UPLOADED_VERSION,
     stdout: () => undefined,
     ...overrides,
@@ -196,7 +196,6 @@ test("parses only the fixed validated-upload interface", () => {
     parseUploadArguments([
       "--secrets-file", "/protected/secrets.json",
       "--public-key-file", "/protected/public.pem",
-      "--app-proof-key-file", "/protected/app-proof.key",
       "--expected-kid", EXPECTED_KID,
       "--tag", "release-tag",
       "--message", "Release message",
@@ -205,7 +204,6 @@ test("parses only the fixed validated-upload interface", () => {
       help: false,
       secretsFile: "/protected/secrets.json",
       publicKeyFile: "/protected/public.pem",
-      appProofKeyFile: "/protected/app-proof.key",
       expectedKid: EXPECTED_KID,
       tag: "release-tag",
       message: "Release message",
@@ -215,7 +213,6 @@ test("parses only the fixed validated-upload interface", () => {
     () => parseUploadArguments([
       "--secrets-file", "/protected/secrets.json",
       "--public-key-file", "/protected/public.pem",
-      "--app-proof-key-file", "/protected/app-proof.key",
       "--expected-kid", EXPECTED_KID,
       "--tag", "release-tag",
       "--message", "Release message",
@@ -351,13 +348,13 @@ test("uploads an immutable protected snapshot and cleans it up", async () => {
         ),
         options.sourceBytes,
       );
-      await assert.rejects(
-        access(join(dirname(stagedConfigPath), "app-proof.key")),
-      );
       assert.equal(invocation.tag, options.tag);
       assert.equal(invocation.message, options.message);
       assert.equal(invocation.workerName, EXPECTED_WORKER_NAME);
       assert.equal(invocation.expectedKid, options.expectedKid);
+      assert.deepEqual(invocation.parentEnvironment, {
+        CLOUDFLARE_API_TOKEN: "test-auth-token",
+      });
     },
   }));
 
@@ -422,6 +419,247 @@ test("validated upload clears retained signing-bundle bytes", async () => {
       Buffer.alloc(retainedSecrets.byteLength),
     );
   }
+});
+
+test("proof credential cancellation clears a successfully returned key", async () => {
+  const options = await uploadOptions();
+  const controller = new AbortController();
+  const interruption = new UploadInterruptedError("SIGINT");
+  const retainedProofKey = Buffer.from(
+    REQUEST_PROOF_KEY,
+    "base64url",
+  );
+  let keypairPreparations = 0;
+
+  await assert.rejects(
+    safeUploadVersion(options, uploadDependencies(options, {
+      abortSignal: controller.signal,
+      requestProofKeyReader: async () => {
+        queueMicrotask(() => controller.abort(interruption));
+        return retainedProofKey;
+      },
+      keypairPreparer: async (_options, dependencies) => {
+        keypairPreparations += 1;
+        await dependencies.requestProofKeyReader({
+          expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+        });
+        assert.fail("cancelled proof lookup must not return");
+      },
+    })),
+    (error) => error === interruption,
+  );
+
+  assert.equal(keypairPreparations, 1);
+  assert.deepEqual(
+    retainedProofKey,
+    Buffer.alloc(retainedProofKey.byteLength),
+  );
+});
+
+test("keypair cancellation clears a successfully returned signing bundle", async () => {
+  const options = await uploadOptions();
+  const controller = new AbortController();
+  const interruption = new UploadInterruptedError("SIGTERM");
+  const retainedSecrets = Buffer.from("sensitive signing bundle");
+
+  await assert.rejects(
+    safeUploadVersion(options, uploadDependencies(options, {
+      abortSignal: controller.signal,
+      keypairPreparer: async () => {
+        queueMicrotask(() => controller.abort(interruption));
+        return { secretsBytes: retainedSecrets };
+      },
+    })),
+    (error) => error === interruption,
+  );
+
+  assert.deepEqual(
+    retainedSecrets,
+    Buffer.alloc(retainedSecrets.byteLength),
+  );
+});
+
+test("validated upload captures and disposes the proof environment before config validation", async () => {
+  const options = await uploadOptions();
+  const parentEnvironment = {
+    ALCHEMY_JWT_REQUEST_PROOF_KEY: REQUEST_PROOF_KEY,
+    CLOUDFLARE_API_TOKEN: "test-auth-token",
+  };
+  let configReads = 0;
+  let keypairPreparations = 0;
+
+  await assert.rejects(
+    safeUploadVersion(options, uploadDependencies(options, {
+      parentEnvironment,
+      requestProofKeyReader: undefined,
+      cloudflareEnvironmentLoader: undefined,
+      readWranglerConfiguration: async () => {
+        configReads += 1;
+        assert.equal(
+          Object.hasOwn(
+            parentEnvironment,
+            "ALCHEMY_JWT_REQUEST_PROOF_KEY",
+          ),
+          false,
+        );
+        parentEnvironment.ALCHEMY_JWT_REQUEST_PROOF_KEY =
+          "reintroduced-proof-secret";
+        throw new Error("injected config validation failure");
+      },
+      keypairPreparer: async () => {
+        keypairPreparations += 1;
+      },
+    })),
+    /Wrangler configuration could not be validated/u,
+  );
+
+  assert.equal(configReads, 1);
+  assert.equal(keypairPreparations, 0);
+  assert.equal(
+    Object.hasOwn(
+      parentEnvironment,
+      "ALCHEMY_JWT_REQUEST_PROOF_KEY",
+    ),
+    false,
+  );
+});
+
+test("validated upload resolves both secrets from its supplied environment", async () => {
+  const options = await uploadOptions();
+  const parentEnvironment = {
+    ALCHEMY_JWT_REQUEST_PROOF_KEY: REQUEST_PROOF_KEY,
+    CLOUDFLARE_API_TOKEN: "test-auth-token",
+  };
+  let runnerEnvironment;
+  await safeUploadVersion(
+    options,
+    uploadDependencies(options, {
+      requestProofKeyReader: undefined,
+      parentEnvironment,
+      cloudflareEnvironmentLoader: undefined,
+      keypairPreparer: async (_options, dependencies) => {
+        const proofKey = await dependencies.requestProofKeyReader({
+          expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+        });
+        assert.deepEqual(
+          proofKey,
+          Buffer.from(REQUEST_PROOF_KEY, "base64url"),
+        );
+        proofKey.fill(0);
+        return {
+          secretsBytes: Buffer.from("sensitive signing bundle"),
+        };
+      },
+      runner: async (invocation) => {
+        runnerEnvironment = invocation.parentEnvironment;
+      },
+    }),
+  );
+  assert.equal(
+    runnerEnvironment.CLOUDFLARE_API_TOKEN,
+    "test-auth-token",
+  );
+  assert.equal(
+    Object.hasOwn(parentEnvironment, "CLOUDFLARE_API_TOKEN"),
+    false,
+  );
+  assert.equal(
+    Object.hasOwn(
+      parentEnvironment,
+      "ALCHEMY_JWT_REQUEST_PROOF_KEY",
+    ),
+    false,
+  );
+});
+
+test("Cloudflare credential interruption keeps signal identity and stops later work", async () => {
+  const options = await uploadOptions();
+  const controller = new AbortController();
+  const interruption = new UploadInterruptedError("SIGINT");
+  let configReads = 0;
+  let keypairPreparations = 0;
+  let snapshotCreations = 0;
+  let runnerCalls = 0;
+
+  await assert.rejects(
+    safeUploadVersion(options, uploadDependencies(options, {
+      abortSignal: controller.signal,
+      cloudflareEnvironmentLoader: async (
+        _environment,
+        dependencies,
+      ) => {
+        assert.equal(
+          dependencies.abortSignal,
+          controller.signal,
+        );
+        controller.abort(interruption);
+        return {
+          CLOUDFLARE_API_TOKEN: "injected-token-after-interruption",
+        };
+      },
+      readWranglerConfiguration: async () => {
+        configReads += 1;
+      },
+      keypairPreparer: async () => {
+        keypairPreparations += 1;
+      },
+      productionSnapshotFactory: async () => {
+        snapshotCreations += 1;
+      },
+      runner: async () => {
+        runnerCalls += 1;
+      },
+    })),
+    (error) => error === interruption,
+  );
+
+  assert.equal(configReads, 0);
+  assert.equal(keypairPreparations, 0);
+  assert.equal(snapshotCreations, 0);
+  assert.equal(runnerCalls, 0);
+});
+
+test("proof credential interruption keeps signal identity and stops later work", async () => {
+  const options = await uploadOptions();
+  const controller = new AbortController();
+  const interruption = new UploadInterruptedError("SIGTERM");
+  let configReads = 0;
+  let snapshotCreations = 0;
+  let runnerCalls = 0;
+
+  await assert.rejects(
+    safeUploadVersion(options, uploadDependencies(options, {
+      abortSignal: controller.signal,
+      readWranglerConfiguration: async (configPath) => {
+        configReads += 1;
+        return {
+          redirected: false,
+          configPath,
+          userConfigPath: configPath,
+          rawConfig: JSON.parse(options.configBytes),
+        };
+      },
+      requestProofKeyReader: async (dependencies) => {
+        assert.equal(
+          dependencies.abortSignal,
+          controller.signal,
+        );
+        controller.abort(interruption);
+        throw new Error("injected proof credential failure");
+      },
+      productionSnapshotFactory: async () => {
+        snapshotCreations += 1;
+      },
+      runner: async () => {
+        runnerCalls += 1;
+      },
+    })),
+    (error) => error === interruption,
+  );
+
+  assert.equal(configReads, 1);
+  assert.equal(snapshotCreations, 0);
+  assert.equal(runnerCalls, 0);
 });
 
 test("missing Wrangler upload output fails closed and is cleaned", async () => {
@@ -793,6 +1031,28 @@ test("interrupting Wrangler terminates and settles the child", async () => {
   );
 });
 
+test("a hostile non-Error upload abort reason normalizes before spawn", async () => {
+  const controller = new AbortController();
+  const revocable = Proxy.revocable({}, {});
+  revocable.revoke();
+  controller.abort(revocable.proxy);
+  let spawnCalls = 0;
+
+  await assert.rejects(
+    runPinnedWrangler(pinnedRunnerOptions({
+      abortSignal: controller.signal,
+      spawnProcess: () => {
+        spawnCalls += 1;
+        return fakeChild(() => true);
+      },
+    })),
+    (error) =>
+      error instanceof UploadInterruptedError &&
+      error.signal === "SIGTERM",
+  );
+  assert.equal(spawnCalls, 0);
+});
+
 test("Wrangler spawn cannot inherit a named Worker environment", async () => {
   const parentEnvironment = {
     CLOUDFLARE_API_TOKEN: "test-auth-token",
@@ -1021,7 +1281,6 @@ test("uploadMain re-signals only after interruption and removes listeners", asyn
   const result = await uploadMain([
     "--secrets-file", "/protected/secrets.json",
     "--public-key-file", "/protected/public.pem",
-    "--app-proof-key-file", "/protected/app-proof.key",
     "--expected-kid", EXPECTED_KID,
     "--tag", "release-tag",
     "--message", "Release message",

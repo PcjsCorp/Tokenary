@@ -7,10 +7,10 @@ Manual operational checklist. Nothing here gates a release, but each item goes s
 Every catalog network carries a `feeMarketHint` with the date it was last checked (`checkedAt`). Hints never expire in the app, so they are only as good as the last probe.
 
 ```bash
-cd Workers/alchemy-jwt && npm run probe:fee-markets -- --app-proof-key-file PATH --expected-kid KID --output /tmp/fee-market-candidate.json
+cd Workers/alchemy-jwt && npm run probe:fee-markets -- --expected-kid KID --output /tmp/fee-market-candidate.json
 ```
 
-`--output` requires Alchemy authorization for this catalog, so `--app-proof-key-file` and `--expected-kid` must be provided together; the output path must not already exist. Diff the candidate against `Shared/Ethereum/NetworkCatalog.json` and apply it explicitly after reviewing the complete change. The probe never touches the source catalog. Details: `Workers/alchemy-jwt/README.md`, "Fee-market catalog probe".
+`--output` requires Alchemy authorization for this catalog, so `--expected-kid` must be provided and `ALCHEMY_JWT_REQUEST_PROOF_KEY` must be available from the environment or login Keychain; the output path must not already exist. Diff the candidate against `Shared/Ethereum/NetworkCatalog.json` and apply it explicitly after reviewing the complete change. The probe never touches the source catalog. Details: `Workers/alchemy-jwt/README.md`, "Fee-market catalog probe".
 
 ## keep the network catalog and ownership set in lockstep
 

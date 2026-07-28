@@ -25,6 +25,12 @@ import { fileURLToPath } from "node:url";
 
 import { experimental_readRawConfig } from "wrangler";
 
+import {
+  readEnvironmentOrLoginKeychainSecret,
+  rethrowLocalSecretCancellation,
+  throwIfLocalSecretAborted,
+} from "./local-secret.mjs";
+
 export const PRODUCTION_WRANGLER_CONFIG_PATH = fileURLToPath(
   new URL("../wrangler.jsonc", import.meta.url),
 );
@@ -32,6 +38,7 @@ export const PINNED_WRANGLER_PATH = fileURLToPath(
   new URL("../node_modules/wrangler/bin/wrangler.js", import.meta.url),
 );
 export const PINNED_WRANGLER_VERSION = "4.112.0";
+export const CLOUDFLARE_API_TOKEN_NAME = "CLOUDFLARE_API_TOKEN";
 
 const WORKER_NAME_PATTERN =
   /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
@@ -464,6 +471,39 @@ export function productionWranglerEnvironment(parentEnvironment) {
     CLOUDFLARE_API_TOKEN: parentEnvironment.CLOUDFLARE_API_TOKEN,
     ...FORCED_ENVIRONMENT,
   };
+}
+
+export async function loadProductionWranglerEnvironment(
+  parentEnvironment = process.env,
+  {
+    cloudflareApiTokenReader =
+      readEnvironmentOrLoginKeychainSecret,
+    abortSignal,
+  } = {},
+) {
+  let apiToken;
+  try {
+    throwIfLocalSecretAborted(abortSignal);
+    apiToken = await cloudflareApiTokenReader(
+      CLOUDFLARE_API_TOKEN_NAME,
+      {
+        environment: parentEnvironment,
+        maxKeychainOutputBytes: 4_097,
+        abortSignal,
+      },
+    );
+    throwIfLocalSecretAborted(abortSignal);
+  } catch (error) {
+    rethrowLocalSecretCancellation(error, abortSignal);
+    throw fail(
+      "CLOUDFLARE_API_TOKEN is unavailable in the environment and login Keychain",
+    );
+  }
+
+  return productionWranglerEnvironment({
+    ...parentEnvironment,
+    [CLOUDFLARE_API_TOKEN_NAME]: apiToken,
+  });
 }
 
 export async function loadProductionWranglerContract({

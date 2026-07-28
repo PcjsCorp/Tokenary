@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { isAbsolute, resolve } from "node:path";
+import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import {
   fetchBoundedWithTimeout,
+  readAppProofKey,
   SafeValidationError,
   verifyReleaseLiveContract,
 } from "./live-validate.mjs";
 import {
   createProtectedProductionSnapshot,
+  loadProductionWranglerEnvironment,
   loadProductionWranglerContract,
   PINNED_WRANGLER_PATH,
   productionWranglerArguments,
@@ -54,7 +56,9 @@ function usage() {
     "Required options:",
     "  --expected-kid KID",
     "  --expected-version UUID",
-    "  --app-proof-key-file PATH",
+    "",
+    "ALCHEMY_JWT_REQUEST_PROOF_KEY is read from the environment or login Keychain.",
+    "CLOUDFLARE_API_TOKEN is read from the environment or login Keychain.",
     "",
     "The command reads fixed deployment status and Worker settings endpoints,",
     "then validates the fixed public issuer endpoint.",
@@ -70,12 +74,10 @@ export function parseReleaseVerificationArguments(arguments_) {
     help: false,
     expectedKid: undefined,
     expectedVersion: undefined,
-    appProofKeyFile: undefined,
   };
   const fields = new Map([
     ["--expected-kid", "expectedKid"],
     ["--expected-version", "expectedVersion"],
-    ["--app-proof-key-file", "appProofKeyFile"],
   ]);
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
@@ -95,8 +97,7 @@ export function parseReleaseVerificationArguments(arguments_) {
   }
   if (
     parsed.expectedKid === undefined ||
-    parsed.expectedVersion === undefined ||
-    parsed.appProofKeyFile === undefined
+    parsed.expectedVersion === undefined
   ) {
     throw fail("all release verification options are required");
   }
@@ -105,12 +106,6 @@ export function parseReleaseVerificationArguments(arguments_) {
   }
   if (!CANONICAL_UUID.test(parsed.expectedVersion)) {
     throw fail("expected release version must be a canonical lowercase UUID");
-  }
-  if (
-    !isAbsolute(parsed.appProofKeyFile) ||
-    resolve(parsed.appProofKeyFile) !== parsed.appProofKeyFile
-  ) {
-    throw fail("app proof key path must be canonical and absolute");
   }
   return parsed;
 }
@@ -349,10 +344,13 @@ export async function executeReleaseVerification(
     scriptSettingsReader = readRemoteScriptSettings,
     liveVerifier = verifyReleaseLiveContract,
     parentEnvironment = process.env,
+    cloudflareEnvironmentLoader =
+      loadProductionWranglerEnvironment,
+    proofKeyReader = readAppProofKey,
   } = {},
 ) {
   const contract = await contractLoader();
-  const childEnvironment = releaseVerificationEnvironment(
+  const childEnvironment = await cloudflareEnvironmentLoader(
     parentEnvironment,
   );
   const snapshot = await snapshotFactory(contract);
@@ -384,7 +382,11 @@ export async function executeReleaseVerification(
     workerName: contract.workerName,
     apiToken: childEnvironment.CLOUDFLARE_API_TOKEN,
   });
-  const live = await liveVerifier(options);
+  const live = await liveVerifier(options, {
+    readProofKey: () => proofKeyReader({
+      environment: parentEnvironment,
+    }),
+  });
   return { deployment, settings, live };
 }
 

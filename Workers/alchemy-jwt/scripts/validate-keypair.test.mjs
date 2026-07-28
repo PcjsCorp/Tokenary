@@ -3,6 +3,7 @@ import {
   createHash,
   generateKeyPairSync,
 } from "node:crypto";
+import { EventEmitter } from "node:events";
 import {
   chmod,
   mkdir,
@@ -16,13 +17,17 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import { afterEach, before, test } from "node:test";
 
 import {
   keypairMain,
-  parseRequestProofKeyFile,
+  parseRequestProofKeyValue,
+  prepareValidatedKeypair,
   readBoundedRegularFile,
   readExpectedRequestProofKeyFingerprint,
+  readRequestProofKeyFromKeychain,
+  readValidatedRequestProofKey,
   SafePreflightError,
   validateKeypair as validateKeypairWithDependencies,
 } from "./validate-keypair.mjs";
@@ -44,10 +49,19 @@ let otherRsa2048;
 let rsa3072;
 let rsa2048Exponent3;
 
-function validateKeypair(options) {
-  return validateKeypairWithDependencies(options, {
+function validateKeypair(
+  options,
+  expectedFingerprint = REQUEST_PROOF_KEY_FINGERPRINT,
+) {
+  const {
+    appProofKey = REQUEST_PROOF_KEY,
+    ...keypairOptions
+  } = options;
+  return validateKeypairWithDependencies(keypairOptions, {
     expectedRequestProofKeyFingerprint:
-      REQUEST_PROOF_KEY_FINGERPRINT,
+      expectedFingerprint,
+    requestProofKeyReader: async ({ expectedFingerprint: pinned }) =>
+      parseRequestProofKeyValue(appProofKey, pinned),
   });
 }
 
@@ -61,6 +75,14 @@ function generateFixture(modulusLength, publicExponent = 65_537) {
     pkcs1: privateKey.export({ format: "pem", type: "pkcs1" }).toString(),
     spki: publicKey.export({ format: "pem", type: "spki" }).toString(),
   };
+}
+
+function keychainChild(output) {
+  const child = new EventEmitter();
+  child.stdout = Readable.from([Buffer.from(output)]);
+  child.kill = () => true;
+  setImmediate(() => child.emit("close", 0, null));
+  return child;
 }
 
 before(() => {
@@ -82,8 +104,7 @@ async function writeFixture({
   privatePem = rsa2048.pkcs8,
   publicPem = rsa2048.spki,
   secretsMode = 0o600,
-  appProofKey = `${REQUEST_PROOF_KEY}\n`,
-  appProofKeyMode = 0o600,
+  appProofKey = REQUEST_PROOF_KEY,
   rawSecrets,
   directory: suppliedDirectory,
 } = {}) {
@@ -97,7 +118,6 @@ async function writeFixture({
   }
   const secretsFile = join(directory, "secrets.json");
   const publicKeyFile = join(directory, "public.pem");
-  const appProofKeyFile = join(directory, "app-proof.key");
   const secrets =
     rawSecrets ??
     JSON.stringify({
@@ -107,60 +127,266 @@ async function writeFixture({
   await writeFile(secretsFile, secrets, { mode: 0o600 });
   await chmod(secretsFile, secretsMode);
   await writeFile(publicKeyFile, publicPem, { mode: 0o644 });
-  await writeFile(appProofKeyFile, appProofKey, { mode: 0o600 });
-  await chmod(appProofKeyFile, appProofKeyMode);
   return {
     secretsFile,
     publicKeyFile,
-    appProofKeyFile,
+    appProofKey,
     expectedKid: EXPECTED_KID,
   };
 }
 
 test("accepts matching RSA and Worker/app request-proof keys", async () => {
   await assert.doesNotReject(validateKeypair(await writeFixture()));
-  await assert.doesNotReject(
-    validateKeypair(
-      await writeFixture({ appProofKey: REQUEST_PROOF_KEY }),
+});
+
+test("strict proof-key parser rejects alternate environment encodings", () => {
+  assert.deepEqual(
+    parseRequestProofKeyValue(
+      REQUEST_PROOF_KEY,
+      REQUEST_PROOF_KEY_FINGERPRINT,
     ),
+    Buffer.from(REQUEST_PROOF_KEY, "base64url"),
+  );
+
+  for (const appProofKey of [
+    `\ufeff${REQUEST_PROOF_KEY}`,
+    `${REQUEST_PROOF_KEY}\r\n`,
+    `${REQUEST_PROOF_KEY}=`,
+    `${REQUEST_PROOF_KEY}\n\n`,
+    `${REQUEST_PROOF_KEY.slice(0, 42)}\xff`,
+  ]) {
+    assert.throws(
+      () => parseRequestProofKeyValue(
+        appProofKey,
+        REQUEST_PROOF_KEY_FINGERPRINT,
+      ),
+      /app proof key must be a canonical 32-byte base64url key/u,
+    );
+  }
+});
+
+test("proof-key lookup prefers the environment and falls back to Keychain", async () => {
+  let keychainReads = 0;
+  const controller = new AbortController();
+  const environment = {
+    ALCHEMY_JWT_REQUEST_PROOF_KEY: REQUEST_PROOF_KEY,
+  };
+  const environmentKey = await readValidatedRequestProofKey({
+    environment,
+    abortSignal: controller.signal,
+    expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+    keychainReader: async () => {
+      keychainReads += 1;
+      return OTHER_REQUEST_PROOF_KEY;
+    },
+  });
+  assert.deepEqual(
+    environmentKey,
+    Buffer.from(REQUEST_PROOF_KEY, "base64url"),
+  );
+  assert.equal(environment.ALCHEMY_JWT_REQUEST_PROOF_KEY, undefined);
+  assert.equal(keychainReads, 0);
+  environmentKey.fill(0);
+
+  const keychainKey = await readValidatedRequestProofKey({
+    environment: {},
+    abortSignal: controller.signal,
+    expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+    keychainReader: async (dependencies) => {
+      keychainReads += 1;
+      assert.equal(dependencies.abortSignal, controller.signal);
+      assert.equal(dependencies.maxOutputBytes, 44);
+      return REQUEST_PROOF_KEY;
+    },
+  });
+  assert.deepEqual(
+    keychainKey,
+    Buffer.from(REQUEST_PROOF_KEY, "base64url"),
+  );
+  assert.equal(keychainReads, 1);
+  keychainKey.fill(0);
+
+  const malformedEnvironment = {
+    ALCHEMY_JWT_REQUEST_PROOF_KEY: "not-a-canonical-proof-key",
+  };
+  await assert.rejects(
+    readValidatedRequestProofKey({
+      environment: malformedEnvironment,
+      expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+      keychainReader: async () => {
+        keychainReads += 1;
+        return REQUEST_PROOF_KEY;
+      },
+    }),
+    /canonical 32-byte base64url key/u,
+  );
+  assert.equal(
+    Object.hasOwn(
+      malformedEnvironment,
+      "ALCHEMY_JWT_REQUEST_PROOF_KEY",
+    ),
+    false,
+  );
+  assert.equal(keychainReads, 1);
+
+  await assert.rejects(
+    readValidatedRequestProofKey({
+      environment: {},
+      expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+      keychainReader: async () => `${REQUEST_PROOF_KEY}\n`,
+    }),
+    /canonical 32-byte base64url key/u,
   );
 });
 
-test("strict proof-key parser rejects alternate raw encodings", () => {
-  const canonicalBytes = Buffer.from(REQUEST_PROOF_KEY, "ascii");
-  assert.deepEqual(
-    parseRequestProofKeyFile(
-      canonicalBytes,
-      REQUEST_PROOF_KEY_FINGERPRINT,
-    ),
-    Buffer.from(REQUEST_PROOF_KEY, "base64url"),
-  );
-  assert.deepEqual(
-    parseRequestProofKeyFile(
-      Buffer.concat([canonicalBytes, Buffer.from("\n", "ascii")]),
-      REQUEST_PROOF_KEY_FINGERPRINT,
-    ),
-    Buffer.from(REQUEST_PROOF_KEY, "base64url"),
-  );
+test("keypair preparation captures the proof environment before file reads", async () => {
+  const options = await writeFixture();
+  await rm(options.secretsFile);
+  const environment = {
+    ALCHEMY_JWT_REQUEST_PROOF_KEY: REQUEST_PROOF_KEY,
+  };
 
-  for (const appProofKeyBytes of [
-    Buffer.concat([
-      Buffer.from([0xef, 0xbb, 0xbf]),
-      canonicalBytes,
-    ]),
-    Buffer.concat([canonicalBytes, Buffer.from("\r\n", "ascii")]),
-    Buffer.concat([canonicalBytes, Buffer.from("=", "ascii")]),
-    Buffer.concat([canonicalBytes, Buffer.from("\n\n", "ascii")]),
-    Buffer.concat([canonicalBytes.subarray(0, 42), Buffer.from([0xff])]),
-  ]) {
-    assert.throws(
-      () => parseRequestProofKeyFile(
-        appProofKeyBytes,
+  const preparation = prepareValidatedKeypair(options, {
+    expectedRequestProofKeyFingerprint:
+      REQUEST_PROOF_KEY_FINGERPRINT,
+    requestProofKeyEnvironment: environment,
+  });
+  assert.equal(
+    Object.hasOwn(
+      environment,
+      "ALCHEMY_JWT_REQUEST_PROOF_KEY",
+    ),
+    false,
+  );
+  environment.ALCHEMY_JWT_REQUEST_PROOF_KEY =
+    "reintroduced-proof-secret";
+
+  await assert.rejects(
+    preparation,
+    /key input file could not be read safely/u,
+  );
+  assert.equal(
+    Object.hasOwn(
+      environment,
+      "ALCHEMY_JWT_REQUEST_PROOF_KEY",
+    ),
+    false,
+  );
+});
+
+test("proof-key Keychain reads enforce the 44-byte presentation cap", async () => {
+  const dependencies = {
+    getUserInfo: () => ({
+      homedir: "/Users/tester",
+      username: "tester",
+    }),
+  };
+  assert.equal(
+    await readRequestProofKeyFromKeychain({
+      ...dependencies,
+      spawnProcess: () => keychainChild(`${REQUEST_PROOF_KEY}\n`),
+    }),
+    REQUEST_PROOF_KEY,
+  );
+  await assert.rejects(
+    readRequestProofKeyFromKeychain({
+      ...dependencies,
+      spawnProcess: () =>
+        keychainChild(`${REQUEST_PROOF_KEY}A\n`),
+    }),
+    /local secret is unavailable/u,
+  );
+});
+
+test("proof-key and keypair cancellation preserve the exact Error", async () => {
+  const controller = new AbortController();
+  const reason = new Error("cancel proof-key lookup");
+  controller.abort(reason);
+  let keychainReads = 0;
+  await assert.rejects(
+    readValidatedRequestProofKey({
+      environment: {},
+      abortSignal: controller.signal,
+      expectedFingerprint: REQUEST_PROOF_KEY_FINGERPRINT,
+      keychainReader: async () => {
+        keychainReads += 1;
+        return REQUEST_PROOF_KEY;
+      },
+    }),
+    (error) => error === reason,
+  );
+  assert.equal(keychainReads, 0);
+
+  const options = await writeFixture();
+  const { appProofKey: _appProofKey, ...keypairOptions } = options;
+  let proofReaderCalls = 0;
+  await assert.rejects(
+    validateKeypairWithDependencies(keypairOptions, {
+      abortSignal: controller.signal,
+      expectedRequestProofKeyFingerprint:
         REQUEST_PROOF_KEY_FINGERPRINT,
-      ),
-      /app proof key file is invalid/u,
-    );
-  }
+      requestProofKeyReader: async () => {
+        proofReaderCalls += 1;
+        return Buffer.from(REQUEST_PROOF_KEY, "base64url");
+      },
+    }),
+    (error) => error === reason,
+  );
+  assert.equal(proofReaderCalls, 0);
+});
+
+test("keypair validation passes its abort signal to the proof reader", async () => {
+  const controller = new AbortController();
+  const options = await writeFixture();
+  const { appProofKey: _appProofKey, ...keypairOptions } = options;
+  let observedDependencies;
+
+  await validateKeypairWithDependencies(keypairOptions, {
+    abortSignal: controller.signal,
+    expectedRequestProofKeyFingerprint:
+      REQUEST_PROOF_KEY_FINGERPRINT,
+    requestProofKeyReader: async (dependencies) => {
+      observedDependencies = dependencies;
+      return parseRequestProofKeyValue(
+        REQUEST_PROOF_KEY,
+        dependencies.expectedFingerprint,
+      );
+    },
+  });
+
+  assert.equal(
+    observedDependencies.abortSignal,
+    controller.signal,
+  );
+  assert.equal(
+    observedDependencies.expectedFingerprint,
+    REQUEST_PROOF_KEY_FINGERPRINT,
+  );
+  assert.equal(
+    Object.hasOwn(observedDependencies, "preparedCredential"),
+    false,
+  );
+});
+
+test("keypair validation preserves cancellation when the proof reader rejects", async () => {
+  const controller = new AbortController();
+  const reason = new Error("cancel rejected proof lookup");
+  const options = await writeFixture();
+  const { appProofKey: _appProofKey, ...keypairOptions } = options;
+
+  await assert.rejects(
+    validateKeypairWithDependencies(keypairOptions, {
+      abortSignal: controller.signal,
+      expectedRequestProofKeyFingerprint:
+        REQUEST_PROOF_KEY_FINGERPRINT,
+      requestProofKeyReader: async ({ abortSignal }) => {
+        assert.equal(abortSignal, controller.signal);
+        controller.abort(reason);
+        throw new Error("injected proof-reader wrapper");
+      },
+    }),
+    (error) => error === reason,
+  );
 });
 
 test("fingerprint file parser requires exact lowercase SHA-256 text", async () => {
@@ -197,22 +423,16 @@ test("fingerprint file parser requires exact lowercase SHA-256 text", async () =
 test("rejects a valid proof key that does not match the pinned fingerprint", async () => {
   const options = await writeFixture();
   await assert.rejects(
-    validateKeypairWithDependencies(options, {
-      expectedRequestProofKeyFingerprint:
-        OTHER_REQUEST_PROOF_KEY_FINGERPRINT,
-    }),
+    validateKeypair(options, OTHER_REQUEST_PROOF_KEY_FINGERPRINT),
     /does not match the pinned fingerprint/u,
   );
 });
 
 test("rejects a mismatched app request-proof key", async () => {
   await assert.rejects(
-    validateKeypairWithDependencies(
+    validateKeypair(
       await writeFixture({ appProofKey: OTHER_REQUEST_PROOF_KEY }),
-      {
-        expectedRequestProofKeyFingerprint:
-          OTHER_REQUEST_PROOF_KEY_FINGERPRINT,
-      },
+      OTHER_REQUEST_PROOF_KEY_FINGERPRINT,
     ),
     /Worker and app request-proof keys do not match/u,
   );
@@ -238,7 +458,7 @@ test("rejects malformed request-proof keys", async () => {
   ]) {
     await assert.rejects(
       validateKeypair(await writeFixture({ appProofKey })),
-      /(app proof key file|key input file size) is invalid/u,
+      /app proof key must be a canonical 32-byte base64url key/u,
     );
   }
 });
@@ -313,17 +533,6 @@ test("requires exact mode 0600 for the secrets file", async () => {
   }
 });
 
-test("requires mode 0600 for the external app proof key", async () => {
-  for (const appProofKeyMode of [0o400, 0o644, 0o700]) {
-    await assert.rejects(
-      validateKeypair(
-        await writeFixture({ appProofKeyMode }),
-      ),
-      /permissions must be exactly 0600/u,
-    );
-  }
-});
-
 test("requires an owner-only secrets directory", async () => {
   const options = await writeFixture();
   await chmod(temporaryDirectories.at(-1), 0o755);
@@ -380,10 +589,8 @@ test("rejects final-component key input symlinks", async () => {
   const directory = temporaryDirectories.at(-1);
   const secretLink = join(directory, "secret-link.json");
   const publicLink = join(directory, "public-link.pem");
-  const appProofLink = join(directory, "app-proof-link.key");
   await symlink(options.secretsFile, secretLink);
   await symlink(options.publicKeyFile, publicLink);
-  await symlink(options.appProofKeyFile, appProofLink);
 
   await assert.rejects(
     validateKeypair({ ...options, secretsFile: secretLink }),
@@ -392,46 +599,6 @@ test("rejects final-component key input symlinks", async () => {
   await assert.rejects(
     validateKeypair({ ...options, publicKeyFile: publicLink }),
     /symlinks are not allowed/u,
-  );
-  await assert.rejects(
-    validateKeypair({ ...options, appProofKeyFile: appProofLink }),
-    /symlinks are not allowed/u,
-  );
-});
-
-test("rejects symlinked ancestors and noncanonical key paths", async () => {
-  const outer = await realpath(
-    await mkdtemp(join(tmpdir(), "alchemy-jwt-preflight-path-")),
-  );
-  temporaryDirectories.push(outer);
-  const realParent = join(outer, "real-parent");
-  const protectedDirectory = join(realParent, "protected");
-  await mkdir(realParent, { mode: 0o700 });
-  await mkdir(protectedDirectory, { mode: 0o700 });
-  const options = await writeFixture({
-    directory: protectedDirectory,
-  });
-  const linkedParent = join(outer, "linked-parent");
-  await symlink(realParent, linkedParent);
-
-  await assert.rejects(
-    validateKeypair({
-      ...options,
-      appProofKeyFile: join(
-        linkedParent,
-        "protected",
-        "app-proof.key",
-      ),
-    }),
-    /must not contain symlinked components/u,
-  );
-  await assert.rejects(
-    validateKeypair({
-      ...options,
-      appProofKeyFile:
-        `${protectedDirectory}/./app-proof.key`,
-    }),
-    /path must be canonical and absolute/u,
   );
 });
 
@@ -517,6 +684,41 @@ test("rejects malformed and incorrectly shaped secret bundles", async () => {
   );
 });
 
+test("the keypair CLI rethrows cancellation instead of reporting failure", async () => {
+  const options = await writeFixture();
+  const controller = new AbortController();
+  const reason = new Error("cancel keypair CLI");
+  controller.abort(reason);
+  const errors = [];
+  let proofReaderCalls = 0;
+
+  await assert.rejects(
+    keypairMain(
+      [
+        "--secrets-file",
+        options.secretsFile,
+        "--public-key-file",
+        options.publicKeyFile,
+        "--expected-kid",
+        EXPECTED_KID,
+      ],
+      {
+        abortSignal: controller.signal,
+        expectedRequestProofKeyFingerprint:
+          REQUEST_PROOF_KEY_FINGERPRINT,
+        stderr: (message) => errors.push(message),
+        requestProofKeyReader: async () => {
+          proofReaderCalls += 1;
+          return Buffer.from(REQUEST_PROOF_KEY, "base64url");
+        },
+      },
+    ),
+    (error) => error === reason,
+  );
+  assert.deepEqual(errors, []);
+  assert.equal(proofReaderCalls, 0);
+});
+
 test("CLI failures never disclose supplied secret material", async () => {
   const sentinel = "never-print-this-private-key-sentinel";
   const options = await writeFixture({
@@ -533,8 +735,6 @@ test("CLI failures never disclose supplied secret material", async () => {
       options.secretsFile,
       "--public-key-file",
       options.publicKeyFile,
-      "--app-proof-key-file",
-      options.appProofKeyFile,
       "--expected-kid",
       EXPECTED_KID,
     ],
@@ -543,6 +743,11 @@ test("CLI failures never disclose supplied secret material", async () => {
         REQUEST_PROOF_KEY_FINGERPRINT,
       stdout: (message) => output.push(message),
       stderr: (message) => errors.push(message),
+      requestProofKeyReader: async ({ expectedFingerprint }) =>
+        parseRequestProofKeyValue(
+          REQUEST_PROOF_KEY,
+          expectedFingerprint,
+        ),
     },
   );
 

@@ -17,6 +17,7 @@ import {
   assertProductionObservabilityPolicy,
   createProtectedProductionSnapshot,
   isValidWorkerName,
+  loadProductionWranglerEnvironment,
   loadProductionWranglerContract,
   PINNED_WRANGLER_PATH,
   PINNED_WRANGLER_VERSION,
@@ -42,6 +43,11 @@ const SNAPSHOT_CONFIG_PATH =
   `${SNAPSHOT_WORKER_DIRECTORY}/wrangler.jsonc`;
 const SNAPSHOT_ENVIRONMENT_PATH = "/protected/rollout/empty.env";
 const temporaryDirectories = [];
+const TEST_CLOUDFLARE_ENVIRONMENT = {
+  CLOUDFLARE_API_TOKEN: "scoped-token",
+};
+const testCloudflareEnvironmentLoader = async () =>
+  TEST_CLOUDFLARE_ENVIRONMENT;
 
 afterEach(async () => {
   await Promise.all(
@@ -485,6 +491,8 @@ test("deployment drift and malformed status block the mutation runner", async ()
     let cleanupCalls = 0;
     await assert.rejects(
       executeRollout(options, {
+        cloudflareEnvironmentLoader:
+          testCloudflareEnvironmentLoader,
         contractLoader: async () => ({
           configPath: PRODUCTION_WRANGLER_CONFIG_PATH,
           workerName: "alchemy-jwt-proxy",
@@ -506,6 +514,8 @@ test("deployment drift and malformed status block the mutation runner", async ()
   let cleanupCalls = 0;
   await assert.rejects(
     executeRollout(options, {
+      cloudflareEnvironmentLoader:
+        testCloudflareEnvironmentLoader,
       contractLoader: async () => ({
         configPath: PRODUCTION_WRANGLER_CONFIG_PATH,
         workerName: "alchemy-jwt-proxy",
@@ -547,6 +557,8 @@ test("deploy checks exact status immediately before mutation", async () => {
       "Promote validated candidate",
     ]),
     {
+      cloudflareEnvironmentLoader:
+        testCloudflareEnvironmentLoader,
       contractLoader: async () => ({
         configPath: PRODUCTION_WRANGLER_CONFIG_PATH,
         workerName: "alchemy-jwt-proxy",
@@ -588,6 +600,7 @@ test("deploy checks exact status immediately before mutation", async () => {
       "--name=alchemy-jwt-proxy",
     ],
     workingDirectory: SNAPSHOT_WORKER_DIRECTORY,
+    parentEnvironment: TEST_CLOUDFLARE_ENVIRONMENT,
   }]);
   assert.deepEqual(mutationInvocations, [{
     arguments_: [
@@ -603,6 +616,7 @@ test("deploy checks exact status immediately before mutation", async () => {
       "--yes",
     ],
     workingDirectory: SNAPSHOT_WORKER_DIRECTORY,
+    parentEnvironment: TEST_CLOUDFLARE_ENVIRONMENT,
   }]);
 });
 
@@ -619,6 +633,8 @@ test("rollout injects the protected snapshot and cleans it", async () => {
       "--config",
     ]),
     {
+      cloudflareEnvironmentLoader:
+        testCloudflareEnvironmentLoader,
       contractLoader: async () => ({
         configPath: PRODUCTION_WRANGLER_CONFIG_PATH,
         workerName: "alchemy-jwt-proxy",
@@ -653,6 +669,7 @@ test("rollout injects the protected snapshot and cleans it", async () => {
       "--yes",
     ],
     workingDirectory: SNAPSHOT_WORKER_DIRECTORY,
+    parentEnvironment: TEST_CLOUDFLARE_ENVIRONMENT,
   }]);
 });
 
@@ -660,6 +677,8 @@ test("rollout list commands emit only their fixed Wrangler vectors", async () =>
   const invocations = [];
   let deploymentStatusCalls = 0;
   const dependencies = {
+    cloudflareEnvironmentLoader:
+      testCloudflareEnvironmentLoader,
     contractLoader: async () => ({
       configPath: PRODUCTION_WRANGLER_CONFIG_PATH,
       workerName: "alchemy-jwt-proxy",
@@ -696,6 +715,9 @@ test("rollout list commands emit only their fixed Wrangler vectors", async () =>
 
 test("settings check uses only the fixed Worker and account", async () => {
   const calls = [];
+  const parentEnvironment = {
+    CLOUDFLARE_API_TOKEN: "scoped-token",
+  };
   const result = await executeRollout(
     parseRolloutArguments(["settings-check"]),
     {
@@ -713,9 +735,7 @@ test("settings check uses only the fixed Worker and account", async () => {
         calls.push(options);
         return {};
       },
-      parentEnvironment: {
-        CLOUDFLARE_API_TOKEN: "scoped-token",
-      },
+      parentEnvironment,
     },
   );
 
@@ -725,6 +745,68 @@ test("settings check uses only the fixed Worker and account", async () => {
     apiToken: "scoped-token",
   }]);
   assert.deepEqual(result, { settingsChecked: true });
+  assert.equal(parentEnvironment.CLOUDFLARE_API_TOKEN, undefined);
+});
+
+test("production Cloudflare credentials can fall back to login Keychain", async () => {
+  const parentEnvironment = {
+    HOME: "/Users/tester",
+    PATH: "/safe/bin",
+    USER: "tester",
+  };
+  const controller = new AbortController();
+  let observedName;
+  let observedEnvironment;
+  let observedAbortSignal;
+  let observedMaximumBytes;
+  const environment = await loadProductionWranglerEnvironment(
+    parentEnvironment,
+    {
+      abortSignal: controller.signal,
+      cloudflareApiTokenReader: async (name, dependencies) => {
+        observedName = name;
+        observedEnvironment = dependencies.environment;
+        observedAbortSignal = dependencies.abortSignal;
+        observedMaximumBytes =
+          dependencies.maxKeychainOutputBytes;
+        return "keychain-token";
+      },
+    },
+  );
+
+  assert.equal(observedName, "CLOUDFLARE_API_TOKEN");
+  assert.equal(observedEnvironment, parentEnvironment);
+  assert.equal(observedAbortSignal, controller.signal);
+  assert.equal(observedMaximumBytes, 4_097);
+  assert.equal(environment.CLOUDFLARE_API_TOKEN, "keychain-token");
+  assert.equal(environment.HOME, undefined);
+  assert.equal(environment.PATH, "/safe/bin");
+  assert.equal(environment.USER, "tester");
+});
+
+test("production credential cancellation is not normalized as auth failure", async () => {
+  const controller = new AbortController();
+  const reason = new Error("cancel production credential lookup");
+  controller.abort(reason);
+  let readerCalls = 0;
+
+  await assert.rejects(
+    loadProductionWranglerEnvironment(
+      {
+        HOME: "/Users/tester",
+        USER: "tester",
+      },
+      {
+        abortSignal: controller.signal,
+        cloudflareApiTokenReader: async () => {
+          readerCalls += 1;
+          return "must-not-run";
+        },
+      },
+    ),
+    (error) => error === reason,
+  );
+  assert.equal(readerCalls, 0);
 });
 
 test("post-validation config mutation or swap cannot change invocation", async () => {
@@ -739,6 +821,8 @@ test("post-validation config mutation or swap cannot change invocation", async (
     await executeRollout(
       parseRolloutArguments(["versions-list"]),
       {
+        cloudflareEnvironmentLoader:
+          testCloudflareEnvironmentLoader,
         contractLoader: async () => {
           if (mutation === "rewrite") {
             await writeFile(fixture.configPath, replacementBytes);
@@ -811,6 +895,8 @@ test("rollout revalidates the protected config immediately before spawn", async 
     executeRollout(
       parseRolloutArguments(["versions-list"]),
       {
+        cloudflareEnvironmentLoader:
+          testCloudflareEnvironmentLoader,
         contractLoader: async () => ({
           configPath: fixture.configPath,
           configBytes: fixture.configBytes,
@@ -856,6 +942,8 @@ test("rollout detects snapshot mutation after the status precondition", async ()
         "Promote validated candidate",
       ]),
       {
+        cloudflareEnvironmentLoader:
+          testCloudflareEnvironmentLoader,
         contractLoader: async () => ({
           configPath: fixture.configPath,
           configBytes: fixture.configBytes,

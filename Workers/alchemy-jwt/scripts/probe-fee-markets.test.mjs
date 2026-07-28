@@ -118,7 +118,6 @@ function probeRecord({
 function probeOptions(catalogPath, writesCandidate) {
   return {
     catalogPath,
-    appProofKeyFile: undefined,
     expectedKid: undefined,
     concurrency: 2,
     timeoutMs: 1_000,
@@ -397,7 +396,6 @@ test("catalog candidates are explicit and use complete probe results", async () 
   };
   const common = {
     catalogPath: catalog.path,
-    appProofKeyFile: undefined,
     expectedKid: undefined,
     concurrency: 1,
     timeoutMs: 1_000,
@@ -860,7 +858,6 @@ test("candidate repairs a mismatched observed endpoint without changing the sour
   await executeFeeMarketProbe(
     {
       catalogPath,
-      appProofKeyFile: undefined,
       expectedKid: undefined,
       concurrency: 1,
       timeoutMs: 1_000,
@@ -926,7 +923,6 @@ test("candidate creation preserves a catalog changed during probing", async (con
     executeFeeMarketProbe(
       {
         catalogPath,
-        appProofKeyFile: undefined,
         expectedKid: undefined,
         concurrency: 1,
         timeoutMs: 1_000,
@@ -1037,7 +1033,6 @@ test("candidate preserves the catalog permission mode", async (context) => {
   await executeFeeMarketProbe(
     {
       catalogPath,
-      appProofKeyFile: undefined,
       expectedKid: undefined,
       concurrency: 1,
       timeoutMs: 1_000,
@@ -1198,7 +1193,6 @@ test("candidate creation refuses to classify Alchemy records without authorizati
     executeFeeMarketProbe(
       {
         catalogPath: catalog.path,
-        appProofKeyFile: undefined,
         expectedKid: undefined,
         concurrency: 1,
         timeoutMs: 1_000,
@@ -1210,7 +1204,7 @@ test("candidate creation refuses to classify Alchemy records without authorizati
   );
 });
 
-test("CLI defaults to report-only and validates credential pairs", () => {
+test("CLI defaults to report-only and uses expected kid to request authorization", () => {
   const defaults = parseProbeArguments([]);
   assert.equal(defaults.outputPath, undefined);
   assert.equal(defaults.concurrency, 8);
@@ -1226,16 +1220,14 @@ test("CLI defaults to report-only and validates credential pairs", () => {
     () => parseProbeArguments(["--app-proof-key-file", "/tmp/key"]),
     SafeFeeMarketProbeError,
   );
-  assert.throws(
-    () => parseProbeArguments(["--expected-kid", "kid"]),
-    SafeFeeMarketProbeError,
+  assert.equal(
+    parseProbeArguments(["--expected-kid", "kid"]).expectedKid,
+    "kid",
   );
   assert.equal(
     parseProbeArguments([
       "--output",
       "/tmp/NetworkCatalog.candidate.json",
-      "--app-proof-key-file",
-      "/tmp/key",
       "--expected-kid",
       "kid",
     ]).outputPath,

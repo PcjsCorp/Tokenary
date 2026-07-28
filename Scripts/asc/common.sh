@@ -1,4 +1,32 @@
 #!/usr/bin/env bash
+
+# Keep the credential bootstrap child-free. In particular, do not resolve this
+# file's path with dirname/cd before both release credentials have been copied
+# into freshly unset, non-exported storage and removed from the public
+# environment.
+set +x
+set +a
+unset _cloudflare_api_token_captured_environment_value \
+  _asc_cloudflare_api_token_snapshot \
+  _asc_cloudflare_api_token_selection \
+  _asc_cloudflare_api_token_cache_valid \
+  CLOUDFLARE_API_TOKEN_VALUE \
+  snapshot \
+  public_assignment_present
+_cloudflare_api_token_captured_environment_value="${CLOUDFLARE_API_TOKEN-}"
+unset CLOUDFLARE_API_TOKEN
+
+unset _asc_common_bootstrap_source \
+  _asc_common_bootstrap_directory
+_asc_common_bootstrap_source="${BASH_SOURCE[0]}"
+case "$_asc_common_bootstrap_source" in
+  */*) _asc_common_bootstrap_directory="${_asc_common_bootstrap_source%/*}" ;;
+  *) _asc_common_bootstrap_directory="." ;;
+esac
+. "$_asc_common_bootstrap_directory/../alchemy_jwt_request_proof_key_common.sh"
+unset _asc_common_bootstrap_source \
+  _asc_common_bootstrap_directory
+
 set -euo pipefail
 
 ASC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,8 +59,6 @@ ASC_WORKFLOW_FILE="$REPO_ROOT/.asc/workflow.json"
 ALCHEMY_JWT_WORKER_DIR="$REPO_ROOT/Workers/alchemy-jwt"
 ALCHEMY_JWT_RECEIPTS_DIR="$ASC_REPORTS_DIR/validated-builds"
 ALCHEMY_JWT_PRELAUNCH_ANCHOR_VERSION="c5c74433-eb49-4998-979b-e78d17da74f8"
-ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE="${ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE:-/Users/ivan/Developer/secrets/tools/ALCHEMY_JWT_REQUEST_PROOF_KEY}"
-export ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE
 VERSIONED_INFO_PLISTS=(
   "App iOS/Info.plist"
   "App macOS/Info.plist"
@@ -50,6 +76,21 @@ log() {
 die() {
   printf '[asc] error: %s\n' "$*" >&2
   exit 1
+}
+
+alchemy_jwt_request_proof_key_fail() {
+  die "$1"
+}
+
+load_alchemy_release_proof_key() {
+  load_alchemy_jwt_request_proof_key \
+    "$REPO_ROOT/Scripts/alchemy_jwt_request_proof_key.sha256"
+}
+
+run_with_alchemy_release_proof_key() {
+  load_alchemy_release_proof_key
+  ALCHEMY_JWT_REQUEST_PROOF_KEY="$ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE" \
+    "$@"
 }
 
 require_cmd() {
@@ -145,122 +186,71 @@ require_alchemy_release_toolchain() {
     || die "the Alchemy Worker package manifest is missing verify:release"
 }
 
-load_cloudflare_api_token_file() {
-  local token_file="${CLOUDFLARE_API_TOKEN_FILE:-}"
-  local token_name
-  local token_parent
-  local canonical_parent
-  local canonical_file
-  local current_user
-  local parent_owner
-  local parent_mode
-  local parent_mode_value
-  local metadata_before
-  local metadata_after
-  local token_owner
-  local token_mode
-  local token_size
-  local snapshot_with_sentinel
-  local snapshot
-  local final_lf=$'\n'
-
+load_cloudflare_api_token() {
   set +x
-  unset CLOUDFLARE_API_TOKEN_VALUE
-
-  [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]] \
-    || die "set CLOUDFLARE_API_TOKEN_FILE instead of exporting CLOUDFLARE_API_TOKEN"
-  [[ -n "$token_file" ]] \
-    || die "CLOUDFLARE_API_TOKEN_FILE is required for Alchemy release verification"
-  [[ "$token_file" == /* ]] \
-    || die "CLOUDFLARE_API_TOKEN_FILE must be an absolute path"
-
-  token_name="${token_file##*/}"
-  token_parent="${token_file%/*}"
-  [[ -n "$token_name" ]] || die "the Cloudflare API token file path is invalid"
-  [[ -n "$token_parent" ]] || token_parent="/"
-
-  canonical_parent="$(cd "$token_parent" 2>/dev/null && pwd -P)" \
-    || die "the Cloudflare API token directory could not be inspected"
-  canonical_file="${canonical_parent%/}/$token_name"
-  [[ "$token_file" == "$canonical_file" ]] \
-    || die "the Cloudflare API token file path must be canonical and must not traverse symbolic links"
-  [[ ! -L "$token_file" && -f "$token_file" ]] \
-    || die "the Cloudflare API token file must be a regular file, not a symbolic link"
-
-  current_user="$(/usr/bin/id -u)" \
-    || die "the current user could not be identified"
-  parent_owner="$(/usr/bin/stat -f '%u' -- "$canonical_parent")" \
-    || die "the Cloudflare API token directory owner could not be inspected"
-  [[ "$parent_owner" == "$current_user" ]] \
-    || die "the Cloudflare API token directory must be owned by the current user"
-  parent_mode="$(/usr/bin/stat -f '%Lp' -- "$canonical_parent")" \
-    || die "the Cloudflare API token directory mode could not be inspected"
-  [[ "$parent_mode" =~ ^[0-7]+$ ]] \
-    || die "the Cloudflare API token directory mode is invalid"
-  parent_mode_value=$((8#$parent_mode))
-  (( (parent_mode_value & 077) == 0 && (parent_mode_value & 0100) != 0 )) \
-    || die "the Cloudflare API token directory must be owner-only and searchable by its owner"
-
-  metadata_before="$(/usr/bin/stat -f '%d:%i:%u:%Lp:%z' -- "$token_file")" \
-    || die "the Cloudflare API token file could not be inspected"
-  IFS=: read -r _ _ token_owner token_mode token_size <<<"$metadata_before"
-  [[ "$token_owner" == "$current_user" ]] \
-    || die "the Cloudflare API token file must be owned by the current user"
-  [[ "$token_mode" == "600" ]] \
-    || die "the Cloudflare API token file mode must be 0600"
-  [[ "$token_size" =~ ^[0-9]+$ ]] \
-    || die "the Cloudflare API token file size is invalid"
-  (( token_size >= 20 && token_size <= 513 )) \
-    || die "the Cloudflare API token file must contain one token line"
-
-  snapshot_with_sentinel="$(
-    /bin/cat -- "$token_file" || exit 1
-    printf '.'
-  )" || die "the Cloudflare API token file could not be read"
-  snapshot="${snapshot_with_sentinel%?}"
-
-  metadata_after="$(/usr/bin/stat -f '%d:%i:%u:%Lp:%z' -- "$token_file")" \
-    || die "the Cloudflare API token file could not be re-inspected"
-  [[ "$metadata_before" == "$metadata_after" ]] \
-    || die "the Cloudflare API token file changed while it was being read"
-  [[ "${#snapshot}" -eq "$token_size" ]] \
-    || die "the Cloudflare API token file contains unsupported bytes"
-
-  if [[ "$snapshot" == *"$final_lf" ]]; then
-    snapshot="${snapshot%$final_lf}"
+  set +a
+  unset _asc_cloudflare_api_token_snapshot \
+    _asc_cloudflare_api_token_selection
+  local LC_ALL=C
+  local _asc_cloudflare_api_token_snapshot
+  local _asc_cloudflare_api_token_selection
+  _asc_cloudflare_api_token_snapshot=""
+  _asc_cloudflare_api_token_selection=captured
+  if [[ "${_asc_cloudflare_api_token_cache_valid:-}" == 1 &&
+      -n "${CLOUDFLARE_API_TOKEN_VALUE:-}" ]]; then
+    _asc_cloudflare_api_token_snapshot="$CLOUDFLARE_API_TOKEN_VALUE"
+    _asc_cloudflare_api_token_selection=cache
+  elif [[ "${CLOUDFLARE_API_TOKEN+x}" == x ]]; then
+    _asc_cloudflare_api_token_snapshot="$CLOUDFLARE_API_TOKEN"
+    _asc_cloudflare_api_token_selection=public
   fi
-  [[ "${#snapshot}" -ge 20 && "${#snapshot}" -le 512 ]] \
-    || die "the Cloudflare API token must contain 20 to 512 characters"
-  [[ "$snapshot" != *[$' \t\r\n']* && "$snapshot" != *[![:graph:]]* ]] \
-    || die "the Cloudflare API token file must contain one printable token line"
 
-  CLOUDFLARE_API_TOKEN_VALUE="$snapshot"
-  unset snapshot snapshot_with_sentinel
+  # Clear public and cache variables before validation or Keychain access. A
+  # cache is revalidated so a hostile exported assignment cannot bypass the
+  # token contract or preserve its export attribute.
+  unset CLOUDFLARE_API_TOKEN \
+    _asc_cloudflare_api_token_cache_valid \
+    CLOUDFLARE_API_TOKEN_VALUE
+  if [[ "$_asc_cloudflare_api_token_selection" == captured ]]; then
+    _asc_cloudflare_api_token_snapshot="${_cloudflare_api_token_captured_environment_value-}"
+  fi
+  unset _cloudflare_api_token_captured_environment_value
+
+  if [[ -z "$_asc_cloudflare_api_token_snapshot" ]]; then
+    load_login_keychain_secret \
+      CLOUDFLARE_API_TOKEN \
+      "$REPO_ROOT/Scripts/alchemy_login_keychain_supervisor.pl"
+    _asc_cloudflare_api_token_snapshot="$LOGIN_KEYCHAIN_SECRET_VALUE"
+    unset LOGIN_KEYCHAIN_SECRET_VALUE
+  fi
+  [[ "${#_asc_cloudflare_api_token_snapshot}" -ge 20 &&
+      "${#_asc_cloudflare_api_token_snapshot}" -le 512 ]] \
+    || die "the Cloudflare API token must contain 20 to 512 characters"
+  [[ "$_asc_cloudflare_api_token_snapshot" != *[$' \t\r\n']* &&
+      "$_asc_cloudflare_api_token_snapshot" != *[![:graph:]]* ]] \
+    || die "the Cloudflare API token must contain one printable token"
+
+  CLOUDFLARE_API_TOKEN_VALUE="$_asc_cloudflare_api_token_snapshot"
+  _asc_cloudflare_api_token_cache_valid=1
+  unset _asc_cloudflare_api_token_snapshot \
+    _asc_cloudflare_api_token_selection
 }
 
 validate_alchemy_release_inputs() {
-  local proof_key_file="${ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE:-}"
-
-  [[ -n "$proof_key_file" ]] \
-    || die "ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE is required for an ASC release"
-  "$REPO_ROOT/Scripts/validate_alchemy_jwt_request_proof_key_file.sh" \
-    "$proof_key_file"
+  load_alchemy_release_proof_key
 
   load_alchemy_release_pins
   require_alchemy_release_toolchain
-  load_cloudflare_api_token_file
-  unset CLOUDFLARE_API_TOKEN_VALUE
+  load_cloudflare_api_token
 }
 
 run_alchemy_worker_release_verification() {
-  local proof_key_file="$1"
   local verification_status
 
-  "$REPO_ROOT/Scripts/validate_alchemy_jwt_request_proof_key_file.sh" \
-    "$proof_key_file"
+  load_alchemy_release_proof_key
   load_alchemy_release_pins
   require_alchemy_release_toolchain
-  load_cloudflare_api_token_file
+  load_cloudflare_api_token
 
   log "verifying deployed Alchemy HMAC Worker $ALCHEMY_JWT_EXPECTED_WORKER_VERSION"
   set +e
@@ -270,15 +260,16 @@ run_alchemy_worker_release_verification() {
       CLOUDFLARE_EMAIL \
       CLOUDFLARE_API_USER_SERVICE_KEY
     CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN_VALUE" \
+      ALCHEMY_JWT_REQUEST_PROOF_KEY="$ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE" \
       npm run verify:release -- \
         --expected-kid "$ALCHEMY_JWT_EXPECTED_KID" \
-        --expected-version "$ALCHEMY_JWT_EXPECTED_WORKER_VERSION" \
-        --app-proof-key-file "$proof_key_file"
+        --expected-version "$ALCHEMY_JWT_EXPECTED_WORKER_VERSION"
   ) >&2
   verification_status=$?
   set -e
 
-  unset CLOUDFLARE_API_TOKEN_VALUE
+  unset CLOUDFLARE_API_TOKEN_VALUE \
+    _asc_cloudflare_api_token_cache_valid
   (( verification_status == 0 )) \
     || die "the deployed Alchemy HMAC Worker failed release verification"
 }

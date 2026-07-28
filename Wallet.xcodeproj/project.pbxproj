@@ -2086,11 +2086,11 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE)",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key.sha256",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key_common.sh",
+				"$(SRCROOT)/Scripts/alchemy_login_keychain_supervisor.pl",
 				"$(SRCROOT)/Scripts/bundle_alchemy_jwt_request_proof_key.sh",
-				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key_file.sh",
+				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key.sh",
 			);
 			name = "Bundle Alchemy JWT Request Proof Key";
 			outputFileListPaths = (
@@ -2112,11 +2112,11 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE)",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key.sha256",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key_common.sh",
+				"$(SRCROOT)/Scripts/alchemy_login_keychain_supervisor.pl",
 				"$(SRCROOT)/Scripts/bundle_alchemy_jwt_request_proof_key.sh",
-				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key_file.sh",
+				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key.sh",
 			);
 			name = "Bundle Alchemy JWT Request Proof Key";
 			outputFileListPaths = (
@@ -2138,11 +2138,11 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE)",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key.sha256",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key_common.sh",
+				"$(SRCROOT)/Scripts/alchemy_login_keychain_supervisor.pl",
 				"$(SRCROOT)/Scripts/bundle_alchemy_jwt_request_proof_key.sh",
-				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key_file.sh",
+				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key.sh",
 			);
 			name = "Bundle Alchemy JWT Request Proof Key";
 			outputFileListPaths = (
@@ -2164,11 +2164,11 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE)",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key.sha256",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key_common.sh",
+				"$(SRCROOT)/Scripts/alchemy_login_keychain_supervisor.pl",
 				"$(SRCROOT)/Scripts/bundle_alchemy_jwt_request_proof_key.sh",
-				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key_file.sh",
+				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key.sh",
 			);
 			name = "Bundle Alchemy JWT Request Proof Key";
 			outputFileListPaths = (
@@ -2190,11 +2190,11 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE)",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key.sha256",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key_common.sh",
+				"$(SRCROOT)/Scripts/alchemy_login_keychain_supervisor.pl",
 				"$(SRCROOT)/Scripts/bundle_alchemy_jwt_request_proof_key.sh",
-				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key_file.sh",
+				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key.sh",
 			);
 			name = "Bundle Alchemy JWT Request Proof Key";
 			outputFileListPaths = (
@@ -2216,11 +2216,11 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE)",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key.sha256",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key_common.sh",
+				"$(SRCROOT)/Scripts/alchemy_login_keychain_supervisor.pl",
 				"$(SRCROOT)/Scripts/bundle_alchemy_jwt_request_proof_key.sh",
-				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key_file.sh",
+				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key.sh",
 			);
 			name = "Bundle Alchemy JWT Request Proof Key";
 			outputFileListPaths = (
@@ -2242,11 +2242,11 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE)",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key.sha256",
 				"$(SRCROOT)/Scripts/alchemy_jwt_request_proof_key_common.sh",
+				"$(SRCROOT)/Scripts/alchemy_login_keychain_supervisor.pl",
 				"$(SRCROOT)/Scripts/bundle_alchemy_jwt_request_proof_key.sh",
-				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key_file.sh",
+				"$(SRCROOT)/Scripts/validate_alchemy_jwt_request_proof_key.sh",
 			);
 			name = "Bundle Alchemy JWT Request Proof Key";
 			outputFileListPaths = (
@@ -3174,7 +3174,6 @@
 		2C19954A2674C4BA00A8E370 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE = /Users/ivan/Developer/secrets/tools/ALCHEMY_JWT_REQUEST_PROOF_KEY;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				BW_WALLETCORE_PROXY_C_OPTIMIZATION = "-O3";
@@ -3243,7 +3242,6 @@
 		2C19954B2674C4BA00A8E370 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE = /Users/ivan/Developer/secrets/tools/ALCHEMY_JWT_REQUEST_PROOF_KEY;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				BW_WALLETCORE_PROXY_C_OPTIMIZATION = "-O3";

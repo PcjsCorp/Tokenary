@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
+set +x
+set +a
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+unset _asc_entrypoint_source _asc_entrypoint_directory
+_asc_entrypoint_source="${BASH_SOURCE[0]}"
+case "$_asc_entrypoint_source" in
+  */*) _asc_entrypoint_directory="${_asc_entrypoint_source%/*}" ;;
+  *) _asc_entrypoint_directory="." ;;
+esac
+source "$_asc_entrypoint_directory/common.sh"
+unset _asc_entrypoint_source _asc_entrypoint_directory
 . "$REPO_ROOT/Scripts/inpage_provider_toolchain.sh"
 
 require_cmd asc
@@ -11,7 +20,6 @@ require_cmd plutil
 inpage_provider_prepare_tool_path
 require_inpage_provider_toolchain
 
-proof_key_file="${ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE:-}"
 validate_alchemy_release_inputs
 
 validate_export_options "$ASC_EXPORT_OPTIONS"
@@ -183,7 +191,7 @@ case "$platform" in
 esac
 
 log "archiving $platform $version ($build_number) from scheme $scheme"
-archive_json="$(asc xcode archive \
+archive_json="$(run_with_alchemy_release_proof_key asc xcode archive \
   --project "$PROJECT" \
   --scheme "$scheme" \
   --configuration Release \
@@ -193,7 +201,6 @@ archive_json="$(asc xcode archive \
   --xcodebuild-flag=-allowProvisioningUpdates \
   --xcodebuild-flag="MARKETING_VERSION=$version" \
   --xcodebuild-flag="CURRENT_PROJECT_VERSION=$build_number" \
-  --xcodebuild-flag="ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE=$proof_key_file" \
   --clean \
   --overwrite \
   --output json)"
@@ -203,7 +210,8 @@ returned_archive_path="$(jq -r '.archive_path // .archivePath // empty' <<<"$arc
 [[ "$returned_archive_path" == "$archive_path" ]] \
   || die "archive returned a path other than the requested isolated archive"
 "$REPO_ROOT/Scripts/assert_no_bundled_alchemy_key.sh" "$archive_path"
-"$REPO_ROOT/Scripts/assert_bundled_alchemy_jwt_request_proof_key.sh" \
+run_with_alchemy_release_proof_key \
+  "$REPO_ROOT/Scripts/assert_bundled_alchemy_jwt_request_proof_key.sh" \
   "$platform" \
   "$archive_path"
 
@@ -255,9 +263,10 @@ case "$platform" in
     ;;
 esac
 
-run_alchemy_worker_release_verification "$proof_key_file"
+run_alchemy_worker_release_verification
 "$REPO_ROOT/Scripts/assert_no_bundled_alchemy_key.sh" "$artifact_path"
-"$REPO_ROOT/Scripts/assert_bundled_alchemy_jwt_request_proof_key.sh" \
+run_with_alchemy_release_proof_key \
+  "$REPO_ROOT/Scripts/assert_bundled_alchemy_jwt_request_proof_key.sh" \
   "$platform" \
   "$artifact_path"
 validated_artifact_sha256="$(release_artifact_sha256 "$artifact_path")"

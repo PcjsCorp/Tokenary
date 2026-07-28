@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 
 import {
   createProtectedProductionSnapshot,
+  loadProductionWranglerEnvironment,
   loadProductionWranglerContract,
   productionWranglerArguments,
-  productionWranglerEnvironment,
   SafeProductionWranglerError,
   spawnPinnedProductionWrangler,
 } from "./production-contract.mjs";
@@ -47,6 +47,8 @@ function usage() {
     "  settings-check",
     "  versions-list",
     "  deploy TARGET... --require-current CURRENT... --message \"Printable message\"",
+    "",
+    "CLOUDFLARE_API_TOKEN is read from the environment or login Keychain.",
   ].join("\n");
 }
 
@@ -220,16 +222,18 @@ export async function executeRollout(
     deploymentStatusRunner = runPinnedDeploymentStatus,
     scriptSettingsReader = readRemoteScriptSettings,
     parentEnvironment = process.env,
+    cloudflareEnvironmentLoader =
+      loadProductionWranglerEnvironment,
   } = {},
 ) {
   if (options.command === "help") {
     return;
   }
+  const environment = await cloudflareEnvironmentLoader(
+    parentEnvironment,
+  );
   const contract = await contractLoader();
   if (options.command === "settings-check") {
-    const environment = productionWranglerEnvironment(
-      parentEnvironment,
-    );
     await scriptSettingsReader({
       accountId: contract.accountId,
       workerName: contract.workerName,
@@ -256,6 +260,7 @@ export async function executeRollout(
       const statusBytes = await deploymentStatusRunner({
         arguments_: statusArguments,
         workingDirectory: snapshot.workerDirectory,
+        parentEnvironment: environment,
       });
       assertCurrentDeployment(
         parseDeploymentStatus(statusBytes),
@@ -280,6 +285,7 @@ export async function executeRollout(
     await runner({
       arguments_,
       workingDirectory: snapshot.workerDirectory,
+      parentEnvironment: environment,
     });
   } finally {
     await snapshot.cleanup();

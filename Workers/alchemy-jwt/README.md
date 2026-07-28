@@ -151,8 +151,9 @@ secret is required for either suite.
 `npm run probe:fee-markets -- [options]` prints current fee-market observations
 without editing `Shared/Ethereum/NetworkCatalog.json`. To materialize the
 results, pass `--output PATH` after supplying any required Alchemy
-authorization options. The output must not already exist and must differ from
-the source catalog.
+authorization options. `--expected-kid` enables Alchemy authorization and the
+proof key is loaded as described below. The output must not already exist and
+must differ from the source catalog.
 
 Candidates replace a network's `feeMarketHint` only when the endpoint returned
 conclusive evidence. Authentication rejection, network or timeout failure,
@@ -191,14 +192,40 @@ must deny group and world access, and the JSON file mode must be exactly
 }
 ```
 
-Keep the same canonical proof key in a separate user-owned mode-`0600`,
-non-symlink regular file inside an owner-only directory outside this
-repository. Local Xcode and ASC workflows currently default to
-`/Users/ivan/Developer/secrets/tools/ALCHEMY_JWT_REQUEST_PROOF_KEY`; an explicit
-`ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE` may override that path for ASC. The file
-may contain the 43 characters alone or one trailing LF. The key is necessarily
-present in the shipped app, but the source file and Wrangler bundle must still
-remain out of version control and logs.
+Supply the same canonical proof key through
+`ALCHEMY_JWT_REQUEST_PROOF_KEY`. Supply the scoped Cloudflare API token through
+`CLOUDFLARE_API_TOKEN`. When either variable is absent or empty, local Xcode,
+ASC, and Worker tooling read the generic-password item whose account is the
+process's effective user and whose service is the variable name from that
+account's login Keychain. Ambient `USER` and `HOME` values are not used to
+select the account or Keychain. For an effective account named `ACCOUNT` whose
+system account record has home directory `ACCOUNT_HOME`, the lookup is
+equivalent to:
+
+```sh
+/usr/bin/security find-generic-password \
+  -a ACCOUNT \
+  -s VARIABLE_NAME \
+  -w "ACCOUNT_HOME/Library/Keychains/login.keychain-db"
+```
+
+The proof-key value must be exactly the 43 canonical base64url characters.
+The Cloudflare token must be one printable, whitespace-free value. Keychain
+passwords must not contain a trailing newline; tooling removes exactly the
+single presentation newline emitted by `security -w` and validates all
+remaining bytes. The proof key is necessarily present in the shipped app, but
+its environment/Keychain source, the Cloudflare token, and the Wrangler bundle
+must remain out of version control and logs.
+
+Node-based Worker tooling and the POSIX shell helper used by Xcode and ASC
+apply a fixed 30-second deadline to the `security` process used for each
+login-Keychain lookup. At the deadline they terminate and reap that child,
+escalating from `SIGTERM` to `SIGKILL` after a 2-second grace period if
+necessary. Validated upload also wires process-signal interruption into its
+credential lookups, so an interrupted upload cancels and reaps an in-flight
+`security` child with the same escalation. The shell helper separately applies
+the same bound to each effective-account query before it starts `security`, so
+a stalled system account lookup also fails closed.
 
 The tracked
 `Scripts/alchemy_jwt_request_proof_key.sha256` file contains the lowercase
@@ -218,7 +245,6 @@ matches the Worker secret:
 npm run validate:keypair -- \
   --secrets-file /absolute/protected/path/alchemy-jwt-secrets.json \
   --public-key-file /absolute/protected/path/alchemy-jwt-public.pem \
-  --app-proof-key-file /absolute/protected/path/alchemy-jwt-request-proof.key \
   --expected-kid "$ALCHEMY_KEY_ID"
 ```
 
@@ -229,7 +255,7 @@ bundles, PKCS1 or encrypted private keys, non-SPKI public keys, concatenated
 PEM envelopes, non-RSA-2048 keys, non-65537 exponents, mismatched keys, and a
 failed in-memory sign/verify check. It also requires a canonical 32-byte proof
 key and compares the decoded Worker/app key bytes in constant time. It never
-prints a path, key, fingerprint, `kid`, JWT, proof, or signature. The app key
+prints a key, fingerprint, `kid`, JWT, proof, or signature. The app key
 must also match the fixed tracked fingerprint before either input is accepted.
 
 This local check cannot attest which public key is registered in the Alchemy
@@ -253,18 +279,20 @@ staging cannot change the configuration or source Wrangler consumes.
 
 The child uses an explicit empty env file, the validated Worker name, the
 already-verified key ID, Wrangler's top-level environment, and the production
-public Cloudflare API. It requires exactly one explicit
-`CLOUDFLARE_API_TOKEN`, rejects legacy or ambiguously cased Cloudflare
-credentials, and receives only that token plus basic process-runtime variables
-from the parent. Cached Wrangler authentication is never a fallback. In
+public Cloudflare API. The wrapper resolves exactly one
+`CLOUDFLARE_API_TOKEN` from the environment or login Keychain, rejects legacy
+or ambiguously cased Cloudflare credentials, and passes only that token plus
+basic process-runtime variables to the child. Cached Wrangler authentication
+is never a fallback. In
 particular, dotenv files, auth-profile locations, proxies, alternate API
 targets, CI Worker-name overrides, Node injection options, and Wrangler logging
 controls are not inherited. Wrangler output remains sanitized and disk logging
 is disabled while the signing key is in scope. The checked-in `account_id`
 therefore remains authoritative, so credentials for another account fail
-closed instead of targeting a same-named Worker. Load the scoped Workers-edit
-token from the protected `CLOUDFLARE_API_TOKEN_FILE` immediately before running
-the wrapper; local dotenv credentials are intentionally ignored.
+closed instead of targeting a same-named Worker. Make the scoped Workers-edit
+token available through `CLOUDFLARE_API_TOKEN` or its login-Keychain item
+immediately before running the wrapper; local dotenv credentials are
+intentionally ignored.
 
 The wrapper removes the signing, environment, and staged-Worker snapshots after
 Wrangler has fully closed on success, failure, `SIGHUP`, `SIGINT`, or
@@ -355,7 +383,6 @@ required UUID/percentage precondition supplied in the command.
    npm run upload:validated -- \
      --secrets-file /absolute/protected/path/alchemy-jwt-secrets.json \
      --public-key-file /absolute/protected/path/alchemy-jwt-public.pem \
-     --app-proof-key-file /absolute/protected/path/alchemy-jwt-request-proof.key \
      --expected-kid "$ALCHEMY_KEY_ID" \
      --tag "alchemy-jwt-hmac-v1-YYYYMMDD" \
      --message "Establish HMAC-gated Alchemy JWT issuance"
@@ -406,7 +433,6 @@ required UUID/percentage precondition supplied in the command.
    npm run validate:live -- \
      --expected-kid "$ALCHEMY_KEY_ID" \
      --expected-version "$HMAC_INITIAL_VERSION_ID" \
-     --app-proof-key-file /absolute/protected/path/alchemy-jwt-request-proof.key \
      --version-override
    ```
 
@@ -430,8 +456,7 @@ required UUID/percentage precondition supplied in the command.
 
    npm run validate:live -- \
      --expected-kid "$ALCHEMY_KEY_ID" \
-     --expected-version "$HMAC_INITIAL_VERSION_ID" \
-     --app-proof-key-file /absolute/protected/path/alchemy-jwt-request-proof.key
+     --expected-version "$HMAC_INITIAL_VERSION_ID"
 
    npm run rollout -- deployments-list
    npm run rollout -- settings-check
@@ -445,23 +470,22 @@ required UUID/percentage precondition supplied in the command.
    ```sh
    npm run verify:release -- \
      --expected-kid "$ALCHEMY_KEY_ID" \
-     --expected-version "$HMAC_INITIAL_VERSION_ID" \
-     --app-proof-key-file /absolute/protected/path/alchemy-jwt-request-proof.key
+     --expected-version "$HMAC_INITIAL_VERSION_ID"
    ```
 
-   `CLOUDFLARE_API_TOKEN` must contain the scoped token. Legacy API-key,
-   account-email, and service-key auth variables are rejected. This command can
-   only run pinned `wrangler deployments status --json`, perform a fixed
-   read-only Cloudflare API GET for this checked-in account and Worker, and
-   validate the fixed public issuer plus `eth-mainnet` canary. It requires the
-   expected UUID to be the only version at 100%, automatic traces to be
-   disabled remotely, and the intended logs policy. It exposes no upload,
-   deploy, secret, rollback, routing override, Worker-name, account, or catalog
-   option.
+   The scoped token must be available through `CLOUDFLARE_API_TOKEN` or its
+   login-Keychain item. Legacy API-key, account-email, and service-key auth
+   variables are rejected. This command can only run pinned
+   `wrangler deployments status --json`, perform a fixed read-only Cloudflare
+   API GET for this checked-in account and Worker, and validate the fixed
+   public issuer plus `eth-mainnet` canary. It requires the expected UUID to be
+   the only version at 100%, automatic traces to be disabled remotely, and the
+   intended logs policy. It exposes no upload, deploy, secret, rollback,
+   routing override, Worker-name, account, or catalog option.
 
 7. Record `HMAC_INITIAL_VERSION_ID` as `HMAC_BASELINE_VERSION_ID`. Only after
    steps 1–6 pass, archive and export all production app products
-   with the same protected `ALCHEMY_JWT_REQUEST_PROOF_KEY_FILE`. Run the
+   with the same environment/Keychain proof key. Run the
    archive/export artifact validation before publishing. Do not archive,
    publish, or submit any app if Worker validation or artifact validation
    fails.
@@ -495,7 +519,7 @@ npm run rollout -- deploy \
 ```
 
 Validate the candidate with `--version-override`, its exact version UUID, and
-the protected app proof-key file before promotion. Cloudflare applies an
+the environment/Keychain proof key before promotion. Cloudflare applies an
 override only when the requested version is in the current deployment; see
 [Cloudflare's version override documentation](https://developers.cloudflare.com/workers/versions-and-deployments/version-overrides/).
 
@@ -503,7 +527,6 @@ override only when the requested version is in the current deployment; see
 npm run validate:live -- \
   --expected-kid "$ALCHEMY_KEY_ID" \
   --expected-version "$HMAC_CANDIDATE_VERSION_ID" \
-  --app-proof-key-file /absolute/protected/path/alchemy-jwt-request-proof.key \
   --version-override
 ```
 
@@ -519,8 +542,7 @@ npm run rollout -- deploy \
 
 npm run validate:live -- \
   --expected-kid "$ALCHEMY_KEY_ID" \
-  --expected-version "$HMAC_CANDIDATE_VERSION_ID" \
-  --app-proof-key-file /absolute/protected/path/alchemy-jwt-request-proof.key
+  --expected-version "$HMAC_CANDIDATE_VERSION_ID"
 ```
 
 If pre-promotion validation fails, leave the baseline at 100% and fix the
