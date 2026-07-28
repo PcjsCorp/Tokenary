@@ -21,7 +21,6 @@ function setup() {
         }
     }
     
-    // Receive from service-worker
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if ("didTapExtensionButton" in request) {
             sendResponse({ host: window.location.host, favicon: getFavicon() });
@@ -34,7 +33,6 @@ function setup() {
         return true;
     });
 
-    // Receive from inpage
     window.addEventListener("message", event => {
         if (event.source == window && event.data) {
             if (event.data.direction == "rpc") {

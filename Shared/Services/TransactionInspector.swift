@@ -255,7 +255,6 @@ private final class MethodSignatureStore: @unchecked Sendable {
         cache.countLimit = 256
     }
 
-    // https://github.com/ethereum-lists/4bytes
     func resolve(
         nameHex: String,
         cancellation: EthereumRequestCancellation,

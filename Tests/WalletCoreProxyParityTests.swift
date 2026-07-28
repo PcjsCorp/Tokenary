@@ -1625,8 +1625,6 @@ final class WalletCoreProxyHDWalletTests: XCTestCase {
                                                                  derivation: .custom,
                                                                  derivationPath: mismatchedCoinPath)?.address,
                        Vectors.abandonEthereumAddress)
-        // WalletCore derives xpub children from raw change/address values only, so hardened
-        // markers in those positions are accepted even though xpub derivation cannot honor them.
         XCTAssertEqual(WalletCrypto.publicKeyDescriptionFromExtended(extended: xpub,
                                                                      coin: .ethereum,
                                                                      derivationPath: hardenedChangeAndAddressPath),

@@ -89,9 +89,6 @@ final class StoredKeyStorage {
                let matchingEntry = existing.first(where: { Self.account($0.account, hasAddressOf: derivedAccount) }) {
                 return filledAccount(matchingEntry.account, wallet: wallet)
             }
-            // WalletCore falls back to stored default/first accounts after an address miss.
-            // Derivation metadata in imported JSON is documented as unreliable, so do not
-            // normalize or replace these records with the derived default account here.
             if let defaultEntry = existing.first(where: { $0.account.derivation == .default }) {
                 return filledAccount(defaultEntry.account, wallet: wallet)
             }
@@ -113,8 +110,6 @@ final class StoredKeyStorage {
         guard type == .mnemonic, derivation != .custom, let wallet else { return nil }
         let existing = walletAccountEntries().filter { $0.account.coin == coin }
         guard let derivedAccount = derivedAccount(coin: coin, derivation: derivation, wallet: wallet) else { return nil }
-        // Match WalletCore: explicit derivation lookup derives an address, then finds the
-        // stored account by coin/address. The returned record keeps its original metadata.
         if let matchingEntry = existing.first(where: { Self.account($0.account, hasAddressOf: derivedAccount) }) {
             return filledAccount(matchingEntry.account, wallet: wallet)
         }

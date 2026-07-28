@@ -70,8 +70,6 @@ if [ -d "$expected_path" ] && [ ! -L "$expected_path" ]; then
     fail "the legacy Alchemy key resource path is unexpectedly a directory"
 fi
 
-# Never inspect or print the legacy file. Removing this exact declared output is
-# sufficient to clean products retained in reused DerivedData.
 /bin/rm -f "$expected_path"
 
 if [ -e "$expected_path" ] || [ -L "$expected_path" ]; then

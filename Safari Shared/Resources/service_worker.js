@@ -415,7 +415,6 @@ function handleOnClick(tab) {
     }
 }
 
-// MARK: - mobile redirect
 
 function mobileRedirectFor(request, sendResponse) {
     const query = encodeURIComponent(JSON.stringify(request.message));
@@ -445,7 +444,6 @@ function mobileRedirectFor(request, sendResponse) {
     });
 }
 
-// MARK: - helpers
 
 function genId() {
     return new Date().getTime() + Math.floor(Math.random() * 1000);

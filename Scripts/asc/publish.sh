@@ -86,8 +86,6 @@ cleanup_release_artifacts() {
   if [[ -n "$artifact_dir" ]]; then
     if ! is_managed_release_directory "$artifact_dir"; then
       log "refusing to clean unexpected release directory: $artifact_dir"
-    # A failed upload command cannot prove that App Store Connect rejected the
-    # binary. Once upload starts, retain its artifact and dSYMs for recovery.
     elif [[ "$upload_attempted" != true ]] &&
          ! rm -rf -- "$artifact_dir"; then
       log "could not remove incomplete release directory: $artifact_dir"
@@ -165,8 +163,6 @@ resolve_uploaded_build_id() {
   return 1
 }
 
-# App Store Connect cannot prove that an existing binary passed the local
-# artifact scan, so retries deliberately require a fresh build number.
 if existing_build_json="$(lookup_build_json 2>/dev/null)"; then
   existing_build_id="$(extract_first_id <<<"$existing_build_json")"
 

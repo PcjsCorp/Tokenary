@@ -20,8 +20,6 @@ final class OneShotGate: @unchecked Sendable {
 final class GasService {
 
     struct Info: Equatable {
-        // These are pure priority fees in wei. The base fee and max-fee
-        // headroom are applied only when a concrete transaction fee is built.
         let standard: BigUInt
         let slow: BigUInt
         let fast: BigUInt
@@ -122,20 +120,13 @@ final class GasService {
                     currentBaseFee ?? nextBaseFee
                 transaction.nextBaseFeePerGas = nextBaseFee
             case .unknown where carriesBaseFeeData:
-                // An inconclusive probe that still observed a base fee
-                // refreshes the validation basis without deciding the
-                // fee market.
                 transaction.currentBaseFeePerGas =
                     currentBaseFee ?? nextBaseFee
                 transaction.nextBaseFeePerGas = nextBaseFee
             case .legacy:
-                // A conclusively legacy market has no base fee; a stale
-                // basis would wrongly constrain legacy fee validation.
                 transaction.currentBaseFeePerGas = nil
                 transaction.nextBaseFeePerGas = nil
             case .unknown:
-                // A probe that learned nothing must not erase context
-                // the pipeline already established.
                 break
             }
         }
@@ -183,8 +174,6 @@ final class GasService {
     private static let rewardPercentiles: [Double] = [10, 25, 50, 75]
     private static let capabilityCache = FeeMarketCapabilityCache()
 
-    // One full-block base fee step of headroom keeps a type-0 transaction
-    // mineable through a rising market without repricing.
     static func suggestedLegacyGasPrice(
         baseFeePerGas: BigUInt,
         priorityFeePerGas: BigUInt
@@ -194,10 +183,6 @@ final class GasService {
         return Transaction.isValidUInt256(gasPrice) ? gasPrice : nil
     }
 
-    // Generous absurdity bound for node-suggested tips: fee history
-    // percentiles and user-chosen fees are never capped, only the
-    // eth_maxPriorityFeePerGas and gas-price-derived fallbacks, so a broken
-    // endpoint cannot inflate the suggestion by orders of magnitude.
     private static let adoptedPriorityFeeCapFloor =
         BigUInt(1_000_000_000_000)
 
@@ -378,8 +363,6 @@ final class GasService {
                 }
                 blockBaseFee = baseFee
             case .null:
-                // An explicit JSON null is contradictory rather than a
-                // definitive legacy-chain signal.
                 completeUnknown()
                 return
             case .missing:
@@ -405,8 +388,6 @@ final class GasService {
                         return
                     }
                     guard let blockBaseFee else {
-                        // Successful fee history contradicts a latest block
-                        // that does not advertise a base fee.
                         completeUnknown()
                         return
                     }
@@ -449,8 +430,6 @@ final class GasService {
                         }
                     } else if knownSupport == .eip1559,
                               let blockBaseFee {
-                        // A fresh catalog hint or conclusive cached detection
-                        // is not downgraded by a transient history failure.
                         finishEIP1559(
                             history: nil,
                             currentBaseFee: blockBaseFee,
@@ -458,9 +437,6 @@ final class GasService {
                         )
                     } else if knownSupport == .legacy,
                               blockBaseFee == nil {
-                        // A dated legacy observation remains a fallback when
-                        // the live history request is temporarily unavailable,
-                        // but it never prevents inspecting the latest block.
                         completeLegacy()
                     } else {
                         completeUnknown(
@@ -486,13 +462,8 @@ final class GasService {
                     )
                 case .failure:
                     if knownSupport == .eip1559 {
-                        // A known fee-market chain is never priced with legacy
-                        // gas off a failed block fetch.
                         completeUnknown()
                     } else {
-                        // Endpoints without eth_getBlockByNumber fall back to
-                        // legacy pricing; completeLegacy never caches, so a
-                        // transient failure cannot stick.
                         completeLegacy()
                     }
                 }
@@ -502,8 +473,6 @@ final class GasService {
         let catalogObservation = endpoint.catalogFeeMarketObservation()
 
         guard let chainID else {
-            // Compatibility path for callers that do not have a network
-            // identity. Capability may be detected, but is never cached.
             startDetection(knownSupport: catalogObservation)
             return
         }
@@ -522,9 +491,6 @@ final class GasService {
                   let actualChainID = EthereumQuantity.parseUInt256(
                       encodedChainID
                   ) else {
-                // Endpoint identity is unavailable, not contradicted.
-                // Proceed like the no-identity compatibility path:
-                // capability may be detected, but is never cached.
                 startDetection(knownSupport: catalogObservation)
                 return
             }

@@ -27,9 +27,6 @@ other_fingerprint=$(
 )
 other_fingerprint=${other_fingerprint%% *}
 
-# Exercise the fixed, adjacent fingerprint lookup without depending on the
-# repository's production fingerprint. The real file is populated separately
-# from the existing production key and is never replaced by a test value.
 fixture_scripts_directory="$test_root/fixture/Scripts"
 /bin/mkdir -p "$fixture_scripts_directory"
 for fixture_script in \
@@ -43,8 +40,6 @@ do
         "$repository_directory/Scripts/$fixture_script" \
         "$fixture_scripts_directory/$fixture_script"
 done
-# Tests that intentionally select an unavailable Keychain source must never
-# contact the developer's real login Keychain now that HOME is not trusted.
 printf '%s\n' \
     '' \
     'alchemy_jwt_request_proof_key_run_keychain_supervisor() {' \
@@ -637,8 +632,6 @@ invoke_validator valid-but-unpinned-replacement failure "$other_key"
         exit 1
     }
 
-    # A value assigned after sourcing wins over the captured environment even
-    # when the captured value is non-empty and otherwise valid.
     ALCHEMY_JWT_REQUEST_PROOF_KEY=$other_key
     export ALCHEMY_JWT_REQUEST_PROOF_KEY
     . "$fixture_scripts_directory/alchemy_jwt_request_proof_key_common.sh"

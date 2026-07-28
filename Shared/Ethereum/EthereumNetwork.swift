@@ -19,8 +19,6 @@ struct EthereumFeeMarketHint: Codable, Equatable, Hashable {
     }()
 
     let support: EthereumFeeMarketSupport
-    // Audit marker for humans diffing the catalog; hints apply
-    // regardless of age. MAINTENANCE.md covers re-probing.
     let checkedAt: String
     let observedEndpoint: String
 
@@ -170,7 +168,6 @@ struct EthereumNetwork: Codable, Equatable, Hashable {
                 debugDescription: "Invalid Ethereum RPC URL"
             )
         }
-        // Runtime trust is never persisted; decoded and custom networks stay untrusted.
         rpcEndpoint = .unauthenticated(rpcURL)
         isTestnet = try container.decode(Bool.self, forKey: .isTestnet)
         mightShowPrice = try container.decode(Bool.self, forKey: .mightShowPrice)

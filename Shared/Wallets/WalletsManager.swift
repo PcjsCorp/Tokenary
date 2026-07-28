@@ -1,5 +1,4 @@
 // ∅ 2026 lil org
-// Local wallet storage and account management.
 
 import Foundation
 
@@ -258,7 +257,6 @@ final class WalletsManager: NSObject {
     }
 
     fileprivate final class PreviewAccountsSession {
-        // Keep derived wallet material private while allowing callers to reuse preview paging work.
         private let hdWallet: WalletHDWallet
         private let coin: WalletCoin?
         private let walletsManager: WalletsManager

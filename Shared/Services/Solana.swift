@@ -1107,9 +1107,6 @@ final class Solana {
                 return confirmationStatus.satisfies(commitment)
             }
 
-            // Older RPC nodes may omit `confirmationStatus`; a present status
-            // still proves the transaction reached at least processed. Fall
-            // back to legacy `confirmations` for stronger commitments.
             switch commitment {
             case .processed:
                 return err == nil
@@ -1596,9 +1593,6 @@ final class Solana {
         case .success(let prepared):
             let parsedMessage = prepared.parsedMessage
 
-            // The bridge only carries message bytes for signAndSendTransaction, so
-            // the wallet can safely assemble a full wire transaction only when it
-            // owns the lone required signature.
             guard parsedMessage.requiredSignaturesCount == 1 else {
                 return .failure(.unsupportedMultiSignature)
             }
@@ -2209,7 +2203,6 @@ final class Solana {
     }
 
     private static func isValidBase58EncodedWirePayload(_ payload: String) -> Bool {
-        // ceil(1_232 * log(256) / log(58))
         return payload.utf8.count <= maxBase58EncodedWirePayloadLength
     }
 

@@ -152,7 +152,6 @@ class ApproveTransactionViewController: NSViewController {
         case .alert(let intent):
             presentOrDeferApprovalAlert(intent)
         case .editorRequest:
-            // The coordinator validates and consumes the alert action first.
             presentTransactionEditor()
         case .completion(let result):
             pendingApprovalAlert = nil

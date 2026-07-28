@@ -1,14 +1,6 @@
 #!/bin/sh
 
-# Shared request-proof key loading for build and release scripts. This file is
-# sourced by callers that provide a fail() function or override the
-# alchemy_jwt_request_proof_key_fail hook. It intentionally writes neither the
-# key nor its fingerprint to stdout or stderr.
 
-# This bootstrap must stay child-free. Imported variables keep their export
-# attribute after assignment, so disable tracing and allexport, copy the public
-# environment value only after freshly unsetting its private destination, and
-# scrub every public/cache variable before a caller can launch a child process.
 set +x
 set +a
 unset _alchemy_jwt_request_proof_key_captured_environment_value \
@@ -87,9 +79,6 @@ load_login_keychain_secret() {
         alchemy_jwt_request_proof_key_fail "the login Keychain service name and supervisor path are required"
     fi
 
-    # Imported environment variables retain their export attribute. Clear all
-    # scratch variables before the first child process, especially variables
-    # that can hold password bytes.
     unset LOGIN_KEYCHAIN_SECRET_VALUE \
         login_keychain_output_with_sentinel \
         login_keychain_output \
@@ -119,11 +108,9 @@ load_login_keychain_secret() {
     login_keychain_supervisor_file=$2
     case "$login_keychain_service" in
         ALCHEMY_JWT_REQUEST_PROOF_KEY)
-            # 43 canonical bytes plus the presentation LF from `security -w`.
             login_keychain_max_output_bytes=44
             ;;
         CLOUDFLARE_API_TOKEN)
-            # The shell contract permits 512 bytes plus the presentation LF.
             login_keychain_max_output_bytes=513
             ;;
         *)
@@ -136,9 +123,6 @@ load_login_keychain_secret() {
         alchemy_jwt_request_proof_key_fail "the login Keychain supervisor is missing or invalid"
     fi
 
-    # USER and HOME are presentation environment variables and can be stale
-    # under sudo, launch agents, or CI. Resolve one internally consistent passwd
-    # record for the process's effective UID instead.
     login_keychain_effective_uid=$(
         alchemy_jwt_request_proof_key_run_id \
             "$login_keychain_supervisor_file" \
@@ -177,8 +161,6 @@ load_login_keychain_secret() {
             ;;
     esac
 
-    # `read` assigns all surplus fields to its final variable, so count the
-    # separators independently before parsing the documented ten-field record.
     login_keychain_record_remainder=$login_keychain_passwd_record
     login_keychain_colon_count=0
     while :; do
@@ -228,9 +210,6 @@ EOF
     esac
     login_keychain_path="${login_keychain_record_home}/Library/Keychains/login.keychain-db"
 
-    # The sentinel prevents command substitution from stripping the newline
-    # emitted by `security -w`. Remove exactly that presentation newline below;
-    # any newline stored in the password remains for caller validation.
     login_keychain_output_with_sentinel=$(
         alchemy_jwt_request_proof_key_run_keychain_supervisor \
             "$login_keychain_supervisor_file" \
@@ -287,15 +266,10 @@ load_alchemy_jwt_request_proof_key() {
     set +x
     set +a
 
-    # Keep tracing disabled after this function returns: callers still use the
-    # loaded key to write or compare bundle resources.
     if [ "$#" -ne 1 ] || [ -z "$1" ]; then
         alchemy_jwt_request_proof_key_fail "the request-proof key fingerprint path is required"
     fi
 
-    # A validated cache wins on reload. Otherwise, a public assignment made
-    # after this file was sourced has precedence over the captured environment,
-    # including an explicitly empty assignment. Always scrub the public value.
     unset alchemy_key_snapshot \
         alchemy_key_byte_count \
         alchemy_key_prefix \
@@ -307,9 +281,6 @@ load_alchemy_jwt_request_proof_key() {
     if [ "${_alchemy_jwt_request_proof_key_cache_valid:-}" = 1 ] &&
         [ -n "${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE:-}" ]
     then
-        # A validated cache wins over any newly introduced public value, but it
-        # still travels through validation below so hostile exported cache
-        # assignments cannot bypass validation or retain their export bit.
         alchemy_key_snapshot=$ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE
         alchemy_key_public_assignment_present=2
     elif [ "${ALCHEMY_JWT_REQUEST_PROOF_KEY+x}" = x ]; then
@@ -317,9 +288,6 @@ load_alchemy_jwt_request_proof_key() {
         alchemy_key_public_assignment_present=1
     fi
 
-    # Clear public and cache variables before the first validation child. The
-    # freshly unset scratch variable above is non-exported even when the cache
-    # or public source was hostile.
     unset ALCHEMY_JWT_REQUEST_PROOF_KEY \
         _alchemy_jwt_request_proof_key_cache_valid \
         ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE \
@@ -363,9 +331,6 @@ load_alchemy_jwt_request_proof_key() {
             ;;
     esac
 
-    # A 32-byte value leaves four data bits in the final base64url character.
-    # Requiring the low two padding bits to be zero proves this is the canonical
-    # unpadded encoding of exactly 32 bytes.
     alchemy_key_prefix=${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE%?}
     alchemy_final_character=${ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE#"$alchemy_key_prefix"}
     case "$alchemy_final_character" in

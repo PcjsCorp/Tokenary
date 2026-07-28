@@ -449,7 +449,6 @@ function safelyDisposeCredentialResult(result, disposeResult) {
   try {
     disposeResult(result);
   } catch {
-    // Cancellation identity takes priority over best-effort memory cleanup.
   }
 }
 
@@ -707,14 +706,12 @@ export async function runPinnedWrangler({
     try {
       child.kill(signal);
     } catch {
-      // The close event remains the source of truth for child settlement.
     }
     forceKillTimer = setTimeoutFunction(() => {
       if (!childClosed) {
         try {
           child.kill("SIGKILL");
         } catch {
-          // Await close so cleanup never races a child that may hold the file.
         }
       }
     }, Math.max(0, childTerminationGraceMilliseconds));
@@ -1139,7 +1136,6 @@ export async function uploadMain(
     try {
       resignal(receivedSignal);
     } catch {
-      // Fall back to the conventional 128 + signal exit status.
     }
     return conventionalExitCode;
   }

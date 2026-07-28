@@ -313,7 +313,6 @@ class BigWalletSolana extends EventEmitter {
             window.navigator.wallets = window.navigator.wallets || [];
             window.navigator.wallets.push(callback);
         } catch (error) {
-            // Some injected contexts expose a read-only navigator; event registration remains authoritative.
         }
     }
 
@@ -872,8 +871,6 @@ class BigWalletSolana extends EventEmitter {
     }
 
     serializedMessageFor(transaction) {
-        // Legacy transactions expose `serializeMessage()`, while versioned
-        // transactions expose the serialized message through `message.serialize()`.
         if (transaction && typeof transaction.serializeMessage === "function") {
             return transaction.serializeMessage();
         }

@@ -9,8 +9,6 @@ fileprivate final class AdaptiveLargeTitleHeaderView: UIView {
 
     private enum Constants {
 #if os(visionOS)
-        // Keep visionOS titles below the navigation material, with enough space
-        // to avoid feeling pinned to its lower edge.
         static let topInset: CGFloat = 8
 #else
         static let topInset: CGFloat = 0
@@ -343,8 +341,6 @@ extension UIViewController {
         let currentFrame = currentHeaderView?.frame ?? .zero
         let headerView = (currentHeaderView as? AdaptiveLargeTitleTableHeaderView) ?? AdaptiveLargeTitleTableHeaderView()
         let topSafeAreaHeight = max(0, view.safeAreaInsets.top)
-        // Move UIKit's automatic top adjustment into the scrolling header. This
-        // keeps the title below navigation material without stacking both insets.
         let automaticTopInset = tableView.adjustedContentInset.top - tableView.contentInset.top
         let externalTopInset = tableView.contentInset.top + headerView.compensatedAutomaticTopInset
         let desiredTopInset = externalTopInset - automaticTopInset
@@ -393,7 +389,6 @@ extension UIViewController {
     }
 
     private func hideSystemTitleForAdaptiveLargeTitle() {
-        // The adaptive header owns title rendering; avoid a second, truncated compact title.
         navigationItem.title = nil
         navigationController?.navigationBar.prefersLargeTitles = false
         navigationItem.largeTitleDisplayMode = .never

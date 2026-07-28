@@ -464,9 +464,6 @@ class ApproveTransactionViewController: UIViewController {
         )
     }
 
-    // The row set only changes when the fee mode switches the number of
-    // fee lines or a data interpretation arrives; both are rebuilt
-    // outside of slider drags.
     private var rowStructureMatchesTransaction: Bool {
         guard let staticRows else { return false }
         let price = priceService.forNetwork(chain)
@@ -477,15 +474,8 @@ class ApproveTransactionViewController: UIViewController {
     }
 
     private func updateDisplayedTransactionInfo(initially: Bool) {
-        // Never rebuild or reload mid-drag; the unconditional pass in
-        // sliderInteractionEnded catches up.
         if !rowStructureMatchesTransaction, !isGasSliderTracking {
             staticRows = makeStaticRows()
-            // Unconditional: the large-title header setup forces an
-            // early zero-row data load in viewDidLoad, so the initial
-            // build must invalidate that too — otherwise the stale row
-            // count makes the next height settle throw. Reloading a
-            // not-yet-loaded table is free.
             tableView.reloadData()
         }
         applyRowContent()
@@ -586,8 +576,6 @@ class ApproveTransactionViewController: UIViewController {
                 for: transaction
             )
             cell.update(
-                // Never move the thumb under the user's finger; the
-                // guarded end-of-drag update resyncs it.
                 value: isGasSliderTracking ? nil : value,
                 isEnabled: true,
                 detail: speedDetail()
@@ -599,10 +587,6 @@ class ApproveTransactionViewController: UIViewController {
                 detail: Strings.calculating.withEllipsis
             )
             if isGasSliderTracking {
-                // Disabling the slider mid-gesture may swallow the
-                // touch-cancel; end the interaction explicitly so
-                // reload deferral cannot stick. A later real end is
-                // a no-op.
                 sliderInteractionEnded()
             }
         }
@@ -677,10 +661,6 @@ extension ApproveTransactionViewController: UITableViewDataSource {
 extension ApproveTransactionViewController: GasPriceSliderDelegate {
 
     func sliderInteractionStarted(value: Double) {
-        // The tracking flag mirrors the physical gesture, not slider
-        // eligibility: reload deferral and thumb-write suppression key
-        // off it, and eligibility can change mid-drag (an estimate can
-        // land after touchdown).
         isGasSliderTracking = true
         gasSliderInteractionStartValue = Float(value)
         gasSliderInteractionDidMove = false
@@ -702,8 +682,6 @@ extension ApproveTransactionViewController: GasPriceSliderDelegate {
             )
         gasSliderInteractionStartValue = nil
         gasSliderInteractionDidMove = false
-        // One unconditional pass at drag end rebuilds the row set if it
-        // changed and settles row heights after the in-place writes.
         updateDisplayedTransactionInfo(initially: false)
         if didInstallPendingQuote {
             updateSpeedConfigurationState()

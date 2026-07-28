@@ -114,7 +114,6 @@ async function readBoundedBody(
         try {
           await reader.cancel("request body too large");
         } catch {
-          // The response is still a deterministic 413 if cancellation races EOF.
         }
         return { status: "too-large" };
       }

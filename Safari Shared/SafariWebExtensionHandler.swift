@@ -70,8 +70,6 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                         for: request,
                         payload: .error(
                             ProviderResponseError(
-                                // Strings.swift is not compiled into the
-                                // Safari extension targets.
                                 message: "Unrecognized chain ID",
                                 code: 4902
                             )

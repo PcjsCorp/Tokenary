@@ -126,8 +126,6 @@ temporary_output=$(
         "${TARGET_BUILD_DIR%/}/.AlchemyJWTRequestProofKey.XXXXXX"
 ) || fail "a temporary request-proof resource could not be created"
 
-# Normalize the optional source newline so every shipped resource has the
-# exact canonical 43-byte representation expected by the client.
 printf '%s' "$ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE" > "$temporary_output"
 /bin/chmod 0644 "$temporary_output"
 /bin/mv -f "$temporary_output" "$resource_path"

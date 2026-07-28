@@ -412,8 +412,6 @@ final class GasServiceTests: XCTestCase {
             )
         }
 
-        // (a) An absurd node suggestion over a tiny base is capped to the
-        // 1000 gwei absurdity floor, which anchors the standard tier.
         let flooredEstimate = estimate(
             currentBaseFee: BigUInt(100),
             maxPriorityFeeResult: .success(
@@ -435,7 +433,6 @@ final class GasServiceTests: XCTestCase {
             ]
         )
 
-        // (b) A large base raises the cap to 16 blocks worth of base fee.
         let largeBaseEstimate = estimate(
             currentBaseFee: BigUInt(100) * gwei,
             maxPriorityFeeResult: .success(
@@ -448,7 +445,6 @@ final class GasServiceTests: XCTestCase {
             BigUInt(1_600) * gwei
         )
 
-        // (c) A modest suggestion passes through unchanged.
         let modestEstimate = estimate(
             currentBaseFee: BigUInt(100),
             maxPriorityFeeResult: .success("0x2"),
@@ -456,7 +452,6 @@ final class GasServiceTests: XCTestCase {
         )
         XCTAssertEqual(modestEstimate.info?.sliderValues, [1, 2, 3, 4])
 
-        // (d) The eth_gasPrice fallback reference is capped the same way.
         let fallbackGasPrice = absurdTip + BigUInt(100)
         let fallbackEstimate = estimate(
             currentBaseFee: BigUInt(100),
@@ -472,8 +467,6 @@ final class GasServiceTests: XCTestCase {
         )
         XCTAssertEqual(fallbackEstimate.gasPrice, fallbackGasPrice)
 
-        // (e) A Polygon-shaped 500 gwei tip over a 30 gwei base stays
-        // under max(30 gwei * 16, 1000 gwei) and is not capped.
         let polygonEstimate = estimate(
             currentBaseFee: BigUInt(30) * gwei,
             maxPriorityFeeResult: .success(
@@ -2085,8 +2078,6 @@ final class GasServiceTests: XCTestCase {
             feeSource: .automatic
         )
 
-        // Without a base fee snapshot the market is unknown; a
-        // structurally valid type-2 fee is as validated as it can get.
         XCTAssertTrue(transaction.isReadyForApproval(on: mainnet))
         XCTAssertNil(transaction.estimatedFeeValue)
         XCTAssertEqual(transaction.maximumFeeValue, BigUInt(4_242_000))
@@ -2096,8 +2087,6 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(transaction.estimatedFeeValue, BigUInt(2_142_000))
         XCTAssertEqual(transaction.maximumFeeValue, BigUInt(4_242_000))
 
-        // A cap equal to the base fee leaves a zero effective tip, which
-        // is acceptable; only a cap below the base fee blocks approval.
         transaction.currentBaseFeePerGas = BigUInt(202)
         XCTAssertTrue(transaction.isReadyForApproval(on: mainnet))
         transaction.currentBaseFeePerGas = BigUInt(203)
@@ -2244,8 +2233,6 @@ final class GasServiceTests: XCTestCase {
             BigUInt(172).toHexString(withPrefix: true)
         )
 
-        // A zero-padded zero is liberally parsed while the exact raw
-        // encoding is preserved.
         let paddedZero = "0x00"
         exact.gasPrice = paddedZero
         XCTAssertEqual(exact.preparedFee, .legacy(gasPrice: 0))
@@ -3927,7 +3914,6 @@ final class GasServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(prepared?.feeIntent, .legacy(gasPrice: nil))
-        // base 110 + base/8 headroom 13 + standard priority 2
         XCTAssertEqual(
             prepared?.preparedFee,
             .legacy(gasPrice: 125)
@@ -3960,8 +3946,6 @@ final class GasServiceTests: XCTestCase {
             )
         }
 
-        // A dapp gas price exactly at the next base fee buys a zero
-        // effective tip, which is the dapp's call to make.
         let atBase = prepare(
             transaction(gasPrice: "0x6e"),
             using: Ethereum(rpc: makeEIP1559RPCStub(chainID: chainID)),
@@ -3972,8 +3956,6 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(atBase?.feeProvenance.gasPrice, .dapp)
         XCTAssertEqual(atBase?.isReadyForApproval(on: network), true)
 
-        // The wallet-managed variant without a supplied gas price still
-        // derives the headroomed suggestion.
         let derived = prepare(
             transaction(gasPrice: nil),
             using: Ethereum(rpc: makeEIP1559RPCStub(chainID: chainID)),
@@ -3983,8 +3965,6 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(derived?.preparedFee, .legacy(gasPrice: 125))
         XCTAssertEqual(derived?.feeProvenance.gasPrice, .automatic)
 
-        // One wei below the base fee cannot be included and stays a
-        // user-fee failure.
         let completed = expectation(description: "below-base rejected")
         Ethereum(
             rpc: makeEIP1559RPCStub(chainID: chainID),
@@ -5087,8 +5067,6 @@ final class GasServiceTests: XCTestCase {
             rpcURL: rpcURL + "/unknown-support-dapp-type-2"
         )
 
-        // A successful fee history contradicting a base-fee-less latest
-        // block keeps the market unknown.
         func makeContradictoryRPC() -> EthereumCoreRPCStub {
             EthereumCoreRPCStub(
                 chainIDResult: .success(
@@ -5205,9 +5183,6 @@ final class GasServiceTests: XCTestCase {
     }
 
     private func makeAnchorMismatchRPC(chainID: Int) -> EthereumCoreRPCStub {
-        // A short fee history whose current base fee contradicts the
-        // latest-block anchor keeps the market unknown while still
-        // observing the block's base fee (101).
         EthereumCoreRPCStub(
             chainIDResult: .success(String.hex(chainID, withPrefix: true)),
             feeHistoryResult: .success(
@@ -5598,7 +5573,6 @@ final class GasServiceTests: XCTestCase {
         )
         switch preflight(automatic, using: ethereum, network: network) {
         case .walletManagedUpdated(let candidate, _):
-            // base 110 + base/8 headroom 13 + standard priority 2
             XCTAssertEqual(candidate.preparedFee, .legacy(gasPrice: 125))
             XCTAssertEqual(
                 candidate.feeProvenance,
@@ -5623,8 +5597,6 @@ final class GasServiceTests: XCTestCase {
         )
         switch preflight(slider, using: ethereum, network: network) {
         case .walletManagedUpdated(let candidate, _):
-            // Slider prices reverse-map to an exact position, so the
-            // refresh is exactly base 110 + standard priority 2.
             XCTAssertEqual(candidate.preparedFee, .legacy(gasPrice: 112))
             XCTAssertEqual(candidate.feeSource, .slider)
         case .safe, .userControlledUnsafe, .unavailable:
@@ -5875,7 +5847,6 @@ final class GasServiceTests: XCTestCase {
         )
         XCTAssertEqual(
             dynamic.suggestedFee(for: .legacy(gasPrice: nil)),
-            // base 110 + base/8 headroom 13 + standard priority 2
             .legacy(gasPrice: 125)
         )
 
@@ -5973,9 +5944,6 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(unparseableRPC.latestBlockCallCount, 1)
         XCTAssertEqual(unparseableRPC.feeHistoryCallCount, 1)
 
-        // An identity-verified follow-up must run a full detection and
-        // conclude legacy: had the unverified eip1559 result been cached,
-        // this endpoint shape would have completed unknown instead.
         let legacyShapedRPC = EthereumCoreRPCStub(
             chainIDResult: .success("0x1"),
             feeHistoryResult: .failure(
@@ -6045,8 +6013,6 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(noChainIDRPC.latestBlockCallCount, 1)
         XCTAssertEqual(noChainIDRPC.feeHistoryCallCount, 1)
 
-        // Nothing was cached: a verified legacy-shaped endpoint re-detects
-        // legacy instead of completing unknown off a cached eip1559 entry.
         let legacyShapedRPC = EthereumCoreRPCStub(
             chainIDResult: .success("0x1"),
             feeHistoryResult: .failure(
@@ -6200,9 +6166,6 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(blocklessRPC.latestBlockCallCount, 1)
         XCTAssertEqual(blocklessRPC.feeHistoryCallCount, 0)
 
-        // The fallback is never cached: a transient-history probe would
-        // have completed legacy off a cached observation, and a healthy
-        // endpoint re-detects eip1559.
         let transientRPC = EthereumCoreRPCStub(
             chainIDResult: .success("0x1"),
             feeHistoryResult: .failure(StubError.expected),
@@ -6702,8 +6665,6 @@ final class GasServiceTests: XCTestCase {
             XCTAssertEqual(rpc.feeHistoryCallCount, 0, fixture.name)
         }
 
-        // A zero-padded block number is liberally parsed and anchors the
-        // history request with its canonical encoding.
         let paddedRPC = EthereumCoreRPCStub(
             chainIDResult: .success(String.hex(110, withPrefix: true)),
             feeHistoryResult: .success(history),

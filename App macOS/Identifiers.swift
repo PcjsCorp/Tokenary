@@ -16,7 +16,6 @@ enum CurrentApp {
         return Bundle.main.bundleIdentifier == Identifiers.macOSAppBundle
     }
 
-    // Only the dock app may initialize the shared keychain password.
     static var canCreatePassword: Bool {
         return isDockApp
     }

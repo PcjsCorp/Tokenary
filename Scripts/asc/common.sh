@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-# Keep the credential bootstrap child-free. In particular, do not resolve this
-# file's path with dirname/cd before both release credentials have been copied
-# into freshly unset, non-exported storage and removed from the public
-# environment.
 set +x
 set +a
 unset _cloudflare_api_token_captured_environment_value \
@@ -205,9 +201,6 @@ load_cloudflare_api_token() {
     _asc_cloudflare_api_token_selection=public
   fi
 
-  # Clear public and cache variables before validation or Keychain access. A
-  # cache is revalidated so a hostile exported assignment cannot bypass the
-  # token contract or preserve its export attribute.
   unset CLOUDFLARE_API_TOKEN \
     _asc_cloudflare_api_token_cache_valid \
     CLOUDFLARE_API_TOKEN_VALUE

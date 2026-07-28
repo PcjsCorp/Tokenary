@@ -51,8 +51,6 @@ $ARGV[0] =~ m{\A/} or invalid_invocation();
 
 my @command = @ARGV;
 
-# The command receives only its explicit arguments and standard descriptors.
-# In particular, no caller credential or process-injection setting is inherited.
 %ENV = ();
 
 pipe(my $output_reader, my $output_writer) or exit 1;
@@ -90,8 +88,6 @@ if ($child_pid == 0) {
     open(STDERR, '>', '/dev/null') or _exit(126);
     close($output_writer);
 
-    # Do not let the fixed child retain caller-owned files, pipes, locks, or
-    # other capabilities through descriptors above stderr.
     opendir(my $descriptor_directory, '/dev/fd') or _exit(126);
     my $descriptor_directory_fd = fileno($descriptor_directory);
     defined($descriptor_directory_fd) or _exit(126);
@@ -155,8 +151,6 @@ my $reap_without_blocking = sub {
             next;
         }
 
-        # ECHILD can result only if an inherited process policy reaped the
-        # child unexpectedly. Treat it as settled but never as success.
         $child_reaped = 1;
         $discard_output->();
         return;
@@ -168,7 +162,6 @@ my $begin_termination = sub {
     $discard_output->();
     return if $child_reaped || $term_sent;
 
-    # The child has not been reaped, so its PID cannot yet have been reused.
     kill('TERM', $child_pid);
     $term_sent = 1;
     $termination_deadline = $now + $termination_grace_seconds;
@@ -177,7 +170,6 @@ my $begin_termination = sub {
 my $force_termination = sub {
     return if $child_reaped || $kill_sent;
 
-    # TERM and KILL decisions are serialized with waitpid in this process.
     kill('KILL', $child_pid);
     $kill_sent = 1;
 };
@@ -224,8 +216,6 @@ my $loop_completed = eval {
         clock_gettime(CLOCK_MONOTONIC) + $timeout_seconds;
 
     while (!$child_reaped || !$output_eof) {
-        # Reap before considering a signal. Once this marks the child reaped,
-        # no later branch can signal a PID that the OS is free to reuse.
         $reap_without_blocking->();
         my $now = clock_gettime(CLOCK_MONOTONIC);
 
@@ -248,16 +238,12 @@ my $loop_completed = eval {
         if ($read_result eq 'error') {
             $begin_termination->($now);
         } elsif ($failed && !$term_sent && !$child_reaped) {
-            # Oversized output is detected by read_once.
             $begin_termination->($now);
         }
 
         if ($child_reaped && !$output_eof &&
             $read_result eq 'blocked')
         {
-            # A reaped direct child cannot produce more bytes. A remaining
-            # writer would be an unexpected inherited descriptor; do not wait
-            # on it or accept an incomplete result.
             $discard_output->();
             $selector->remove($output_reader);
             $close_reader->();
@@ -298,8 +284,6 @@ if (!$loop_completed) {
     $discard_output->();
 }
 
-# This is also the exception and interruption cleanup path. It never returns
-# while the direct child remains waitable.
 if (!$child_reaped) {
     my $now = clock_gettime(CLOCK_MONOTONIC);
     if (!$term_sent) {
@@ -330,7 +314,6 @@ if (!$child_reaped) {
         }
         next if $waited_pid == -1 && $! == EINTR;
 
-        # ECHILD or any other wait failure is terminal but not successful.
         $child_reaped = 1;
         $discard_output->();
     }

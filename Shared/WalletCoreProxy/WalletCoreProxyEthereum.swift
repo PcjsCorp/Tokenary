@@ -47,7 +47,6 @@ private enum EthereumType {
         for bitWidth in 1...256 {
             let power = previousPower + previousPower
             if bitWidth.isMultiple(of: 8) {
-                // Cache unsigned bounds and the signed bounds that use one fewer bit.
                 result[bitWidth] = power
                 result[bitWidth - 1] = previousPower
             }
@@ -178,7 +177,6 @@ enum EIP712 {
             return address.leftPadded(to: 32)
         default:
             if let length = EthereumType.fixedBytesLength(type: type) {
-                // WalletCore accepts odd or undersized EIP-712 bytesN values and right-pads them.
                 guard let data = hexDataValue(value, lenient: true),
                       !data.isEmpty,
                       data.count <= length else { return nil }

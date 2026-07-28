@@ -558,8 +558,6 @@ struct EditTransactionView: View {
     }
 
     private static func exactWei(fromGwei rawText: String) -> BigUInt? {
-        // Comma-decimal locales type "," on the decimal pad;
-        // the fields themselves always render ".".
         let text = rawText.replacingOccurrences(of: ",", with: ".")
         guard !text.isEmpty,
               text.utf8.count <= maximumExactGweiTextLength else {

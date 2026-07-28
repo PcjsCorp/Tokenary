@@ -78,8 +78,6 @@ struct Window {
         }
     }
     
-    // MARK: - Private
-    
     private static func closeAll() {
         isClosingAllWindows = true
         NSApplication.shared.windows.forEach { window in
@@ -120,7 +118,6 @@ struct Window {
     }
     
     private static var new: NSWindowController {
-        // ⚠️ windows cascading relies on consistent initial window size
         return NSStoryboard.main.instantiateController(withIdentifier: "initial") as! NSWindowController
     }
     

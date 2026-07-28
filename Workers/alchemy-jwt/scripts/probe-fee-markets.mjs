@@ -873,8 +873,6 @@ async function writeCatalogCandidate(
       sourceStats,
     );
 
-    // Publishing with link is an atomic no-clobber operation: an existing
-    // file or symlink at candidatePath makes the operation fail.
     await link(temporaryPath, candidatePath);
     published = true;
     await assertCatalogUnchanged(

@@ -136,10 +136,7 @@ struct Strings {
     static let viewOnX = "𝕏"
     static let gwei = "gwei"
     
-    // MARK: - Helpers
-    
     private static func loc(_ string: String.LocalizationValue) -> String {
-        // NSLocalizedString("Add Network", comment: "")
         return String(localized: string)
     }
     

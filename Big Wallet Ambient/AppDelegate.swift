@@ -74,7 +74,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @IBAction func openWallet(_ sender: Any?) {
-        // Disabled for the ambient helper by validateMenuItem(_:).
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {

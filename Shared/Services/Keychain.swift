@@ -60,8 +60,6 @@ struct Keychain {
         return saveIfMissing(data: data, key: .password)
     }
     
-    // MARK: - Wallet Storage
-    
     func getAllWalletsIds() -> [String] {
         let allKeys = allStoredItemsKeys()
         let ids = allKeys.compactMap { ItemKey.walletId(key: $0) }
@@ -83,8 +81,6 @@ struct Keychain {
     func removeWallet(id: String) throws {
         removeData(forKey: .wallet(id: id))
     }
-    
-    // MARK: - Private
     
     private func update(data: Data, key: ItemKey) throws {
         let query: [String: Any] = [

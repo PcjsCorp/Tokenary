@@ -293,8 +293,6 @@ struct WalletStoredKey {
             return privateKey
         case .mnemonic:
             guard let wallet = wallet(password: password) else { return nil }
-            // WalletCore resolves TWDerivationDefault first, not the app's Solana preference,
-            // then uses that record's stored path.
             let account = storage.accountForCoinDerivation(coin: coin, derivation: .default, wallet: wallet)
             return account.flatMap { wallet.privateKey(coin: coin, derivationPath: $0.derivationPath) }
         }

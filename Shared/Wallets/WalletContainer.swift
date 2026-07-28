@@ -1,5 +1,4 @@
 // ∅ 2026 lil org
-// Rewrite of Wallet.swift from Trust Wallet Core.
 
 import Foundation
 

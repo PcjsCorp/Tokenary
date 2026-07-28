@@ -1,5 +1,4 @@
 // ∅ 2026 lil org
-// Rewrite of utils.js from trust-web3-provider.
 
 "use strict";
 
@@ -10,7 +9,6 @@ class Utils {
         return new Date().getTime() + Math.floor(Math.random() * 1000);
     }
     
-    // message: Bytes | string
     static messageToBuffer(message) {
         var buffer = Buffer.from([]);
         try {

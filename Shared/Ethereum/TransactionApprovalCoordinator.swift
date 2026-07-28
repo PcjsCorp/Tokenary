@@ -496,8 +496,6 @@ struct TransactionApprovalReducer {
         if state.preparation.allowsMutation &&
             state.preparation.phase != .preparing {
             if case .automatic = transaction.feeIntent {
-                // A failed preparation keeps the editor reachable so fees
-                // can be entered by hand and preparation retried.
                 canEdit = transaction.preparedFee != nil
                     || state.preparation.phase == .failed
             } else {

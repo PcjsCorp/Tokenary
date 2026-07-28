@@ -782,8 +782,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
         await sleeper.resumeNext()
         await firstFetchGate.waitUntilStarted()
 
-        // Moving uptime past the no-op tolerance used to make hot-path calls
-        // replace and cancel the task that was already refreshing.
         clock.advanceUptime(by: 2)
         let lifecyclePrewarm = provider.prewarm()
         var concurrentTokens: [String?] = []
@@ -866,8 +864,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             return await broker.fetchCount == 1 && durations.count == 2
         }
 
-        // A lifecycle event immediately after the shared fetch must observe
-        // the no-progress cooldown instead of issuing another request.
         await provider.prewarm().value
         let durations = await sleeper.requestedDurations()
         let fetchCount = await broker.fetchCount
@@ -1095,7 +1091,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("Expected the initial demand failure")
         } catch {
-            // Expected.
         }
 
         store.record = replacement
@@ -1106,14 +1101,12 @@ final class AlchemyJWTProviderTests: XCTestCase {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("Expected the post-expiry demand failure")
         } catch {
-            // Expected.
         }
         clock.advance(by: 0.3)
         do {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("Expected the retry demand failure")
         } catch {
-            // Expected.
         }
 
         let fetchCount = await broker.fetchCount
@@ -2054,7 +2047,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("Expected the first demand acquisition to fail")
         } catch {
-            // Expected.
         }
         store.record = crossProcessRecord
 
@@ -2279,7 +2271,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("Expected the shared Retry-After backoff")
         } catch {
-            // Expected.
         }
 
         let fetchCount = await broker.fetchCount
@@ -3112,13 +3103,11 @@ final class AlchemyJWTProviderTests: XCTestCase {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("Expected the broker rate limit")
         } catch {
-            // Expected.
         }
         do {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("Expected the Retry-After deadline")
         } catch {
-            // Expected.
         }
         let backedOffFetchCount = await broker.fetchCount
         XCTAssertEqual(backedOffFetchCount, 1)
@@ -3160,7 +3149,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("Expected the broker rate limit")
         } catch {
-            // Expected.
         }
 
         clock.adjustWallTime(by: 3_600)
@@ -3168,7 +3156,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("A forward wall-clock jump must not bypass cooldown")
         } catch {
-            // Expected.
         }
 
         clock.adjustWallTime(by: -7_200)
@@ -3176,7 +3163,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             _ = try await provider.authorization(for: alchemyURL)
             XCTFail("A backward wall-clock jump must not alter cooldown")
         } catch {
-            // Expected.
         }
         let backedOffFetchCount = await broker.fetchCount
         XCTAssertEqual(backedOffFetchCount, 1)
@@ -3308,7 +3294,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             )
             XCTFail("Expected the broker rate limit")
         } catch {
-            // Expected.
         }
         do {
             _ = try await provider.replacementAuthorization(
@@ -3317,7 +3302,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             )
             XCTFail("Expected the shared Retry-After deadline")
         } catch {
-            // Expected.
         }
         let throttledFetchCount = await broker.fetchCount
         XCTAssertEqual(throttledFetchCount, 1)
@@ -3370,7 +3354,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             )
             XCTFail("Expected the broker rate limit")
         } catch {
-            // Expected.
         }
         XCTAssertEqual(
             sleeper.durations,
@@ -3384,7 +3367,6 @@ final class AlchemyJWTProviderTests: XCTestCase {
             )
             XCTFail("Expected the active Retry-After deadline")
         } catch {
-            // Expected.
         }
 
         XCTAssertEqual(

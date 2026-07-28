@@ -796,10 +796,6 @@ struct Transaction {
                 baseFeePerGas: feeBasisBaseFeePerGas
             )
         case .eip1559:
-            // Without a base fee the market is unknown (custom endpoints
-            // only — the catalog gate above already required one on
-            // known fee-market chains), so a structurally valid fee is
-            // as validated as it can get.
             guard let feeBasisBaseFeePerGas else { return true }
             return preparedFee.hasSufficientEffectivePriorityFee(
                 baseFeePerGas: feeBasisBaseFeePerGas
@@ -812,8 +808,6 @@ struct Transaction {
     )
 
     static func isValidUInt256(_ value: BigUInt) -> Bool {
-        // BigUInt is intentionally unbounded, so enforce Ethereum's protocol
-        // quantity boundary at every fee-domain entry point.
         value <= maximumUInt256
     }
 

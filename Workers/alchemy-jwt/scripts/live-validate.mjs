@@ -1,12 +1,5 @@
 #!/usr/bin/env node
 
-/**
- * Secret-safe production validation for the Alchemy JWT issuer.
- *
- * The JWT is accepted only from the issuer response and retained in memory for
- * this process. It is never accepted as a CLI argument, written to disk,
- * included in an error, or printed.
- */
 
 import assert from "node:assert/strict";
 import {
@@ -525,7 +518,6 @@ async function readBoundedResponse(response, byteLimit, context) {
         try {
           await reader.cancel();
         } catch {
-          // The deterministic size failure wins if cancellation races EOF.
         }
         throw safeFailure(
           `${context}: response exceeded the byte limit`,
@@ -556,7 +548,6 @@ function cancelUnusedResponseBody(body) {
       .cancel("unused non-success response body")
       .catch(() => undefined);
   } catch {
-    // Cleanup must not override an already-known HTTP status.
   }
 }
 
@@ -691,7 +682,6 @@ async function waitForExpectedVersion(
       if (!(error instanceof SafeValidationError)) {
         throw error;
       }
-      // A stale version may not yet expose the new response policy.
     }
     if (attempt < 31 && nowImplementation() < deadline) {
       await sleepImplementation(VERSION_WAIT_INTERVAL_MS);

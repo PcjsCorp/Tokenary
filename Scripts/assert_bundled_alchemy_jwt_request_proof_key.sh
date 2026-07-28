@@ -239,9 +239,6 @@ case "$platform" in
         ;;
 esac
 
-# The find status is checked before any counting or comparison, so an
-# unreadable subtree cannot be hidden by a successful wc/tr pipeline. Matching
-# temporary names in this same set makes the exact comparison reject them too.
 if ! LC_ALL=C /usr/bin/find -P "$scan_root" \
     \( \
         -name 'AlchemyJWTRequestProofKey' -o \

@@ -1,5 +1,3 @@
-// 2026 lil org
-
 import Foundation
 
 enum WalletCoreProxyTestVectors {
@@ -314,7 +312,6 @@ enum WalletCoreProxyTestVectors {
     static let uint8OverflowTypedDataJSON = #"{"types":{"EIP712Domain":[],"Order":[{"name":"fills","type":"uint8[]"}]},"primaryType":"Order","domain":{},"message":{"fills":[1,2,256]}}"#
     static let int8UnderflowTypedDataJSON = #"{"types":{"EIP712Domain":[],"Order":[{"name":"side","type":"int8"}]},"primaryType":"Order","domain":{},"message":{"side":-129}}"#
     static let negativeZeroTypedDataJSON = #"{"types":{"EIP712Domain":[],"Order":[{"name":"side","type":"int8"}]},"primaryType":"Order","domain":{},"message":{"side":"-0"}}"#
-    // WalletCore accepts this undersized, odd-length bytesN value for EIP-712 parity.
     static let shortFixedBytesTypedDataJSON = #"{"types":{"EIP712Domain":[],"Order":[{"name":"tag","type":"bytes4"}]},"primaryType":"Order","domain":{},"message":{"tag":"0xabc"}}"#
     static let fixedArrayTypedDataJSON = #"{"types":{"EIP712Domain":[],"Order":[{"name":"fills","type":"uint8[2]"}]},"primaryType":"Order","domain":{},"message":{"fills":[1,2]}}"#
     static let cyclicArrayTypedDataJSON = #"{"types":{"EIP712Domain":[],"Node":[{"name":"children","type":"Node[]"},{"name":"name","type":"string"}]},"primaryType":"Node","domain":{},"message":{"children":[],"name":"root"}}"#

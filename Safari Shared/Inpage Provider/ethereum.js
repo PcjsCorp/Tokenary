@@ -1,5 +1,4 @@
 // ∅ 2026 lil org
-// Rewrite of index.js from trust-web3-provider.
 
 "use strict";
 
@@ -114,7 +113,7 @@ class BigWalletEthereum extends EventEmitter {
     }
     
     enable() {
-        if (!window.bigwallet.eth.address) { // avoid double accounts request in uniswap
+        if (!window.bigwallet.eth.address) {
             return this.request({ method: "eth_requestAccounts", params: [] });
         } else {
             return this.request({ method: "eth_accounts", params: [] });
@@ -165,8 +164,6 @@ class BigWalletEthereum extends EventEmitter {
         this.idMapping.tryFixId(payload);
         return new Promise((resolve, reject) => {
             this.callbacks.set(payload.id, (error, data) => {
-                // Some dapps do not get responses sent without a delay.
-                // e.g., nftx.io does not start with a latest account if response is sent without a delay.
                 setTimeout( function() {
                     if (error) {
                         reject(error);
@@ -369,14 +366,12 @@ class BigWalletEthereum extends EventEmitter {
             this.sendResponse(id, response.result);
         } else if ("results" in response) {
             if (response.name == "switchEthereumChain" || response.name == "addEthereumChain") {
-                // Calling it before sending response matters for some dapps
                 this.updateAccount(response.name, response.results, response.chainId);
             }
             if (response.name != "switchAccount") {
                 this.sendResponse(id, response.results);
             }
             if (response.name == "requestAccounts" || response.name == "switchAccount") {
-                // Calling it after sending response matters for some dapps
                 this.updateAccount(response.name, response.results, response.chainId);
             }
         } else if ("error" in response) {

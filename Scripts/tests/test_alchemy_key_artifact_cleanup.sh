@@ -487,10 +487,6 @@ awk '
 ' "$publish_script" ||
     fail "the exact exported artifact is not isolated and scanned before upload"
 
-# Run the mocked publishing scenarios from a minimal temporary repository.
-# Its synthetic key and adjacent fingerprint exercise the same fixed lookup
-# without exposing the production key to tests or modifying the tracked
-# production fingerprint.
 publish_fixture_root="$test_root/publish fixture repository"
 mkdir -p \
     "$publish_fixture_root/.asc" \

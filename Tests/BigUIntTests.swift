@@ -27,7 +27,6 @@ final class BigUIntTests: XCTestCase {
         XCTAssertEqual(BigUInt(decimalString: "000001")?.description, "1")
         XCTAssertEqual(BigUInt(decimalString: "18446744073709551616")?.hexString, "10000000000000000")
 
-        // Selected conversion case adapted from grachyov's MIT-licensed upstream integer tests.
         let hexSample = "123456789ABCDEFEDCBA98765432123456789ABCDEF"
         let decimalSample = "425693205796080237694414176550132631862392541400559"
         let value = BigUInt(hexString: hexSample)

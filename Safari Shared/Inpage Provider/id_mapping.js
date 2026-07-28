@@ -1,5 +1,4 @@
 // ∅ 2026 lil org
-// Rewrite of id_mapping.js from trust-web3-provider.
 
 "use strict";
 

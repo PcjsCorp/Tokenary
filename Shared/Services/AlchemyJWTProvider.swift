@@ -628,7 +628,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
                 return AlchemyAuthorization(token: record.token)
             }
         } catch ProviderError.unchangedRejectedToken {
-            // A same-second RS256 token has identical signing input.
         }
 
         try await sleep(Self.issuanceSecondWaitNanoseconds)
@@ -734,7 +733,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
             _ = mergePersistedState(persisted, at: currentTime)
             synchronizeProactiveRefresh(at: currentTime)
         } catch {
-            // Preserve the in-memory token when Keychain is temporarily unavailable.
         }
     }
 
@@ -777,7 +775,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
             _ = try await refresh(intent: .opportunistic)
             synchronizeProactiveRefresh(at: nowSeconds())
         } catch {
-            // Prewarming is opportunistic; a still-valid token remains in memory.
             synchronizeProactiveRefresh(at: nowSeconds())
         }
     }
@@ -923,8 +920,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
             )
             synchronizeProactiveRefresh(at: refreshedAt)
         } catch {
-            // The current JWT remains usable. Its monotonic cooldown controls
-            // the next scheduled attempt.
             clearProactiveRefreshSchedule(
                 generation: generation,
                 tokenDigest: tokenDigest
@@ -1074,7 +1069,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
             let persistedState = try tokenStore.load()
             _ = mergePersistedState(persistedState, at: currentTime)
         } catch {
-            // A memory-only acquisition remains usable if Keychain is unavailable.
         }
         return eligibleMemoryRecord(for: intent, at: currentTime)
     }
@@ -1332,7 +1326,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
                         if isAlchemyJWTBrokerRateLimit(error) {
                             throw error
                         }
-                        // Demand retains its independent retry/backoff behavior.
                     case .timedOut:
                         return .timedOut
                     }
@@ -1477,7 +1470,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
                     }
                 }
             } catch {
-                // Retry within this bounded best-effort repair window.
             }
 
             let currentUptime = uptimeNanoseconds()
@@ -1587,9 +1579,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
         let currentTime = nowSeconds()
         let digest = Self.tokenDigest(token)
 
-        // Local rejection must not wait for a synchronous Keychain mutation.
-        // Any persistence snapshot that raced this tombstone is repaired by the
-        // existing dirty-state persistence coordinator.
         stateLock.lock()
         let cachedMatchingRecord = state.cachedRecord.flatMap {
             $0.record.token == token ? $0.record : nil
@@ -1658,7 +1647,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
         if let existing = state.cachedRecord,
            existing.record.token != record.token,
            existing.record.issuedAt >= record.issuedAt {
-            // A concurrent refresh already installed an equally new or newer JWT.
         } else {
             let existingRevision: UInt64?
             if state.cachedRecord?.record.token == record.token {
@@ -1728,7 +1716,6 @@ final class AlchemyJWTProvider: @unchecked Sendable, AlchemyAuthorizationProvidi
         stateLock.unlock()
     }
 
-    // Call only while stateLock is held.
     private func advanceOpportunisticBackoffLocked(
         at currentUptime: UInt64
     ) {

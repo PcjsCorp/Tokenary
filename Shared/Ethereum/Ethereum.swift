@@ -265,9 +265,6 @@ struct Ethereum {
                                 != resolved.currentBaseFeePerGas
                             || transaction.nextBaseFeePerGas
                                 != resolved.nextBaseFeePerGas
-                    // Fee discovery races nonce/inspection work. Apply only the
-                    // fields owned by this branch so its original snapshot can
-                    // never erase newer preparation results.
                     transaction.copyFeeState(from: resolved)
                     transaction.currentBaseFeePerGas =
                         resolved.currentBaseFeePerGas
@@ -406,8 +403,6 @@ struct Ethereum {
             }
             if let endpointChainID = estimate.endpointChainID,
                endpointChainID != BigUInt(UInt64(network.chainId)) {
-                // A verified identity mismatch is the only hard stop;
-                // endpoints that cannot answer eth_chainId proceed unverified.
                 completion(.unavailable(candidate, estimate))
                 return
             }
@@ -445,10 +440,6 @@ struct Ethereum {
                 } ?? false
             case (.unknown, _) where candidate.feeProvenance
                 .containsUserControlledValue(for: preparedFee):
-                // Without market data the user approves the exact fee they
-                // supplied — but any retained or observed basis still gates
-                // it, because send re-validates readiness against the
-                // installed basis.
                 isSafe = candidate.feeBasisBaseFeePerGas.map {
                     preparedFee.hasSufficientEffectivePriorityFee(
                         baseFeePerGas: $0
@@ -468,8 +459,6 @@ struct Ethereum {
                    candidate.feeProvenance.containsUserControlledValue(
                        for: preparedFee
                    ) {
-                    // Mirrors the eip1559 routing: a user fee that fails
-                    // basis validation stays editable.
                     completion(.userControlledUnsafe(candidate, estimate))
                 } else {
                     completion(.unavailable(candidate, estimate))
@@ -510,8 +499,6 @@ struct Ethereum {
                 }
                 let gasPrice: BigUInt?
                 if source == .slider {
-                    // Slider prices reverse-map to an exact position;
-                    // headroom would drift the thumb on every refresh.
                     let sliderGasPrice = baseFee + priority
                     gasPrice = Transaction.isValidUInt256(sliderGasPrice)
                         ? sliderGasPrice
@@ -596,14 +583,9 @@ struct Ethereum {
                 return
             }
             guard updatedFee.maximumNetworkFee(gasLimit: gasLimit) != nil else {
-                // A wallet refresh that cannot be signed must not bounce back
-                // through the editable unsafe-fee flow and retry indefinitely.
                 completion(.unavailable(candidate, estimate))
                 return
             }
-            // A preflight refresh updates the same approval attempt. Do not
-            // route it through `Transaction.apply`, which deliberately
-            // creates a new logical transaction ID for user edits.
             candidate.replacePreparedFee(
                 updatedFee,
                 provenance: updatedProvenance
@@ -692,8 +674,6 @@ struct Ethereum {
             }
             if let endpointChainID = estimate.endpointChainID,
                endpointChainID != BigUInt(UInt64(network.chainId)) {
-                // A verified identity mismatch is the only hard stop;
-                // endpoints that cannot answer eth_chainId proceed unverified.
                 completion(.unavailable(.gasPriceUnavailable))
                 return
             }
@@ -923,8 +903,6 @@ struct Ethereum {
                        existingFee.gasPrice.map({
                            Transaction.isValidGasPrice($0, on: network)
                        }) != false {
-                        // A manually entered or dapp-supplied fee survives an
-                        // unknown market; the editor escape hatch depends on it.
                         break
                     }
                     unavailable(.gasPriceUnavailable)
@@ -1013,9 +991,6 @@ struct Ethereum {
                     ?? (requestedMaxFee == nil ? .automatic : .dapp)
                 guard estimate.support == .eip1559,
                       let baseFee else {
-                    // Honor a complete user-supplied pair when nothing is
-                    // known about the market; a conclusively legacy endpoint
-                    // still refuses type-2 fees.
                     guard estimate.support == .unknown,
                           prioritySource.isUserControlled,
                           maxFeeSource.isUserControlled,
@@ -1124,9 +1099,6 @@ struct Ethereum {
                !resolvedFee.hasSufficientEffectivePriorityFee(
                    baseFeePerGas: basis
                ) {
-                // The basis retained or observed through an inconclusive
-                // probe still gates readiness; route below-basis fees to
-                // the editor instead of a generic preparation failure.
                 if resolved.feeProvenance.containsUserControlledValue(
                     for: resolvedFee
                 ) {

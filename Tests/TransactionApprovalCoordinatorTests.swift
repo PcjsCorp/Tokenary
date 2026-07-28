@@ -824,8 +824,6 @@ final class TransactionApprovalCoordinatorTests: XCTestCase {
             )
         )
         XCTAssertEqual(coordinator.snapshot.phase, .editing)
-        // The failed preparation already completed, so its handle was
-        // cleared without needing cancellation.
         XCTAssertFalse(first.cancellation.isCancelled)
 
         coordinator.startPreparation(forceGasCheck: true)

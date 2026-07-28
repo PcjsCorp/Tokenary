@@ -124,7 +124,6 @@ export function disposeCapturedEnvironmentLocalSecret(
   try {
     delete state.environment[state.name];
   } catch {
-    // Disposal must remain safe even if the environment was made hostile.
   }
   state.environmentValue = undefined;
   capturedEnvironmentSecrets.delete(capturedSecret);
@@ -134,7 +133,6 @@ function safeKill(child, signal) {
   try {
     child.kill(signal);
   } catch {
-    // Process settlement remains the source of truth.
   }
 }
 
@@ -145,7 +143,6 @@ function safeCancelTimeout(cancelTimeout, handle) {
   try {
     cancelTimeout(handle);
   } catch {
-    // Timer cleanup must not replace the process result.
   }
 }
 
@@ -153,7 +150,6 @@ function safeRemoveListener(emitter, eventName, listener) {
   try {
     emitter?.removeListener?.(eventName, listener);
   } catch {
-    // Listener cleanup must not replace the process result.
   }
 }
 
@@ -186,8 +182,6 @@ export async function readLoginKeychainPassword(
   let keychainAccount;
   let keychainHome;
   try {
-    // The default `userInfo()` reports the process's effective user. Ambient
-    // USER and HOME values can be stale under sudo, launch agents, or CI.
     const currentUser = getUserInfo();
     keychainAccount = currentUser?.username;
     keychainHome = currentUser?.homedir;
@@ -285,8 +279,6 @@ export async function readLoginKeychainPassword(
     if (closed) {
       return;
     }
-    // An observed caller cancellation takes priority over an earlier local
-    // timeout or stream failure while the child is still being reaped.
     failure = cancellationFailure(abortSignal);
     discardOutput = true;
     eraseChunks();
@@ -387,7 +379,6 @@ export async function readLoginKeychainPassword(
     onAbort();
   }
   if (typeof stdout?.resume === "function") {
-    // Keep draining after failure so a full pipe cannot delay process exit.
     stdout.resume();
   }
 
@@ -404,9 +395,6 @@ export async function readLoginKeychainPassword(
     }
 
     output = Buffer.concat(chunks, totalBytes);
-    // `security -w` terminates its presentation with one LF. Remove exactly
-    // that byte so any LF stored in the password remains and is rejected by
-    // the caller's secret-specific validation.
     if (output.byteLength < 2 || output.at(-1) !== 0x0a) {
       throw fail("local secret is unavailable");
     }
@@ -415,8 +403,6 @@ export async function readLoginKeychainPassword(
     try {
       password = new TextDecoder("utf-8", {
         fatal: true,
-        // Preserve a leading BOM as U+FEFF so the caller's secret-specific
-        // validation sees every decoded character from the stored password.
         ignoreBOM: true,
       }).decode(passwordBytes);
     } catch {
@@ -432,7 +418,6 @@ export async function readLoginKeychainPassword(
       try {
         abortSignal.removeEventListener("abort", onAbort);
       } catch {
-        // Listener cleanup must not replace the process result.
       }
     }
     safeRemoveListener(child, "error", onChildError);
@@ -470,8 +455,6 @@ export async function readCapturedEnvironmentOrLoginKeychainSecret(
   capturedState.environmentValue = undefined;
   capturedEnvironmentSecrets.delete(capturedSecret);
   try {
-    // Do not let a value reintroduced after capture override the original,
-    // and do not leave it available to later child processes.
     delete environment[name];
   } catch (error) {
     rethrowLocalSecretCancellation(error, abortSignal);
@@ -500,7 +483,6 @@ export async function readCapturedEnvironmentOrLoginKeychainSecret(
     try {
       delete environment[name];
     } catch {
-      // Lookup settlement must not be replaced by final environment cleanup.
     }
   }
 }
