@@ -6,8 +6,8 @@
         {
           "fill" : "none",
           "glass" : true,
-          "image-name" : "Frame 1.svg",
-          "name" : "Frame 1",
+          "image-name" : "AppIcon.svg",
+          "name" : "App Icon",
           "opacity" : 1
         }
       ],
