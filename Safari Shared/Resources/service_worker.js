@@ -67,12 +67,31 @@ function handleOnMessage(request, sender, sendResponse) {
         const provider = request.provider;
         const host = request.host;
         removeLatestConfiguration(host, provider).then(() => {
-            sendResponse();
-        }).catch(() => { sendResponse(); });
+            sendDisconnectResponse(request, sendResponse, {
+                result: null
+            });
+        }).catch(() => {
+            sendDisconnectResponse(request, sendResponse, {
+                error: "Failed to revoke permissions",
+                errorCode: -32603
+            });
+        });
     } else {
         sendResponse();
     }
     return true;
+}
+
+function sendDisconnectResponse(request, sendResponse, response) {
+    if (typeof request.id === "undefined") {
+        sendResponse();
+        return;
+    }
+    sendResponse({
+        name: "revokePermissions",
+        provider: request.provider,
+        ...response
+    });
 }
 
 const latestConfigurationWriteQueues = new Map();
@@ -141,8 +160,7 @@ function removeLatestSolanaConfigurationIfMatching(host, publicKey) {
 
 function queueLatestConfigurationUpdate(host, update) {
     return queueLatestConfigurationWrite(host, async () => {
-        const latest = await getLatestConfiguration(host);
-        const currentArray = latestConfigurationsArray(latest);
+        const currentArray = await readLatestConfigurations(host);
         const updatedArray = latestConfigurationsArray(update(currentArray));
         await browser.storage.local.set({ [host]: updatedArray });
     });
@@ -177,6 +195,12 @@ function latestConfigurationsArray(latest) {
         return [latest];
     }
     return [];
+}
+
+function readLatestConfigurations(host) {
+    return browser.storage.local.get(host).then(stored => {
+        return latestConfigurationsArray(stored[host]);
+    });
 }
 
 function prewarmAlchemyIfConfigured(
@@ -360,12 +384,10 @@ function sameAlchemyPrewarmConfiguration(lhs, rhs) {
 }
 
 function getLatestConfiguration(host) {
-    return new Promise((resolve) => {
-        browser.storage.local.get(host).then(result => {
-            resolve({ latestConfigurations: latestConfigurationsArray(result[host]) });
-        }).catch(() => {
-            resolve({ latestConfigurations: [] });
-        });
+    return readLatestConfigurations(host).then(latestConfigurations => {
+        return { latestConfigurations };
+    }).catch(() => {
+        return { latestConfigurations: [] };
     });
 }
 

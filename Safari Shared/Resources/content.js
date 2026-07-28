@@ -46,7 +46,14 @@ function setup() {
                 disconnectRequest.host = window.location.host;
                 disconnectRequest.navigate = false;
                 disconnectRequest.confirm = false;
-                browser.runtime.sendMessage(disconnectRequest).then(() => {}).catch(() => {});
+                browser.runtime.sendMessage(disconnectRequest).then(response => {
+                    sendDisconnectResponseToInpage(
+                        disconnectRequest,
+                        response
+                    );
+                }).catch(() => {
+                    sendDisconnectResponseToInpage(disconnectRequest);
+                });
             } else if (event.data.subject == "notConfirmed") {
                 document.navigationBlocked = false;
                 document.navigationDate = 0;
@@ -58,6 +65,26 @@ function setup() {
     });
     
     document.addEventListener('visibilitychange', didChangeVisibility);
+}
+
+function sendDisconnectResponseToInpage(request, response) {
+    if (typeof request.id === "undefined") {
+        return;
+    }
+    const resolvedResponse = typeof response !== "undefined"
+        ? response
+        : {
+            name: "revokePermissions",
+            provider: request.provider,
+            error: "Failed to revoke permissions",
+            errorCode: -32603,
+            revokeLocally: true
+        };
+    window.postMessage({
+        direction: "from-content-script",
+        response: resolvedResponse,
+        id: request.id
+    }, "*");
 }
 
 function injectScript() {

@@ -50,6 +50,10 @@ const idMappingSource = buildSync({
     write: false,
 }).outputFiles[0].text;
 
+function normalized(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
 function frozenClockGlobals() {
     return {
         Date: class FrozenDate {
@@ -76,6 +80,7 @@ function makeFrozenClockIdMapping() {
 
 function makeProviderFromSource(source, providerName, extraGlobals = {}) {
     const scheduledCallbacks = [];
+    const disconnectCalls = [];
     const postedMessages = [];
     const context = vm.createContext({
         clearTimeout() {},
@@ -91,7 +96,9 @@ function makeProviderFromSource(source, providerName, extraGlobals = {}) {
         },
         window: {
             bigwallet: {
-                disconnect() {},
+                disconnect(...args) {
+                    disconnectCalls.push(args);
+                },
                 postMessage(...args) {
                     postedMessages.push(args);
                 },
@@ -104,6 +111,7 @@ function makeProviderFromSource(source, providerName, extraGlobals = {}) {
     }).runInContext(context);
     const provider = new context.module.exports();
     context.window.bigwallet[providerName] = provider;
+    provider.disconnectCalls = disconnectCalls;
     provider.postedMessages = postedMessages;
     provider.runScheduledCallbacks = () => {
         while (scheduledCallbacks.length > 0) {
@@ -440,6 +448,238 @@ test("cleans request mappings after a local provider rejection", () => {
     assert.equal(provider.callbacks.has(payload.id), false);
     assert.equal(provider.wrapResults.has(payload.id), false);
     assert.equal(provider.idMapping.intIds.has(payload.id), false);
+});
+
+test("revokes Ethereum account access after disconnect storage succeeds", async () => {
+    const provider = makeProvider();
+    provider.didGetLatestConfiguration = true;
+    provider.setAddress("0x0000000000000000000000000000000000000001");
+    const events = [];
+    provider.on("accountsChanged", accounts => {
+        events.push(["accountsChanged", normalized(accounts)]);
+    });
+    provider.on("disconnect", () => {
+        events.push(["disconnect"]);
+    });
+    const payload = {
+        id: 73,
+        method: "wallet_revokePermissions",
+        params: [{
+            eth_accounts: {},
+        }],
+    };
+
+    const result = provider.request(payload);
+
+    assert.deepEqual(provider.disconnectCalls, [["ethereum", 73]]);
+    assert.equal(
+        provider.address,
+        "0x0000000000000000000000000000000000000001"
+    );
+    assert.deepEqual(events, []);
+
+    provider.processBigWalletResponse(payload.id, {
+        name: "revokePermissions",
+        provider: "ethereum",
+        result: null,
+    });
+
+    assert.equal(provider.address, "");
+    assert.equal(provider.selectedAddress, "");
+    assert.equal(provider.ready, false);
+    assert.deepEqual(events, [["accountsChanged", []]]);
+
+    provider.runScheduledCallbacks();
+    assert.equal(await result, null);
+    assert.equal(provider.callbacks.has(payload.id), false);
+    assert.equal(provider.wrapResults.has(payload.id), false);
+    assert.equal(provider.idMapping.intIds.has(payload.id), false);
+    assert.equal(provider.pendingPermissionRevocations.has(payload.id), false);
+});
+
+test("does not emit a redundant account event when revoking without an account", async () => {
+    const provider = makeProvider();
+    provider.didGetLatestConfiguration = true;
+    const events = [];
+    provider.on("accountsChanged", accounts => {
+        events.push(normalized(accounts));
+    });
+    const payload = {
+        id: 74,
+        method: "wallet_revokePermissions",
+        params: [{
+            eth_accounts: {},
+        }],
+    };
+
+    const result = provider.request(payload);
+    provider.processBigWalletResponse(payload.id, {
+        name: "revokePermissions",
+        provider: "ethereum",
+        result: null,
+    });
+    provider.runScheduledCallbacks();
+
+    assert.equal(await result, null);
+    assert.deepEqual(events, []);
+    assert.equal(provider.pendingPermissionRevocations.has(payload.id), false);
+});
+
+test("successful revocation wins over an intervening account update", async () => {
+    const provider = makeProvider();
+    provider.didGetLatestConfiguration = true;
+    const address = "0x0000000000000000000000000000000000000001";
+    provider.setAddress(address);
+    const events = [];
+    provider.on("accountsChanged", accounts => {
+        events.push(normalized(accounts));
+    });
+    const payload = {
+        id: 85,
+        method: "wallet_revokePermissions",
+        params: [{
+            eth_accounts: {},
+        }],
+    };
+
+    const result = provider.request(payload);
+    provider.updateAccount("requestAccounts", [address], "0x1");
+    provider.processBigWalletResponse(payload.id, {
+        name: "revokePermissions",
+        provider: "ethereum",
+        result: null,
+    });
+    provider.runScheduledCallbacks();
+
+    assert.equal(await result, null);
+    assert.equal(provider.address, "");
+    assert.equal(provider.selectedAddress, "");
+    assert.equal(provider.ready, false);
+    assert.deepEqual(events, [[]]);
+    assert.equal(provider.pendingPermissionRevocations.has(payload.id), false);
+});
+
+test("rejects invalid Ethereum permission revocations locally", async () => {
+    const invalidParameters = [
+        undefined,
+        null,
+        [],
+        [{}],
+        [{ eth_accounts: {} }, { eth_accounts: {} }],
+        [{ personal_sign: {} }],
+        [{ eth_accounts: {}, personal_sign: {} }],
+        [{ eth_accounts: null }],
+        [{ eth_accounts: [] }],
+    ];
+
+    for (const [index, params] of invalidParameters.entries()) {
+        const provider = makeProvider();
+        provider.didGetLatestConfiguration = true;
+        const payload = {
+            id: 75 + index,
+            method: "wallet_revokePermissions",
+        };
+        if (typeof params !== "undefined") {
+            payload.params = params;
+        }
+
+        const result = provider.request(payload);
+        provider.runScheduledCallbacks();
+
+        await assert.rejects(
+            result,
+            error =>
+                error.code === -32602 &&
+                error.message === "Invalid parameters"
+        );
+        assert.deepEqual(provider.disconnectCalls, []);
+        assert.equal(provider.callbacks.has(payload.id), false);
+        assert.equal(provider.wrapResults.has(payload.id), false);
+        assert.equal(provider.idMapping.intIds.has(payload.id), false);
+        assert.equal(
+            provider.pendingPermissionRevocations.has(payload.id),
+            false
+        );
+    }
+});
+
+test("keeps Ethereum account access when disconnect storage fails", async () => {
+    const provider = makeProvider();
+    provider.didGetLatestConfiguration = true;
+    const address = "0x0000000000000000000000000000000000000001";
+    provider.setAddress(address);
+    const events = [];
+    provider.on("accountsChanged", accounts => {
+        events.push(normalized(accounts));
+    });
+    const payload = {
+        id: 84,
+        method: "wallet_revokePermissions",
+        params: [{
+            eth_accounts: {},
+        }],
+    };
+
+    const result = provider.request(payload);
+    provider.processBigWalletResponse(payload.id, {
+        name: "revokePermissions",
+        provider: "ethereum",
+        error: "Failed to revoke permissions",
+        errorCode: -32603,
+    });
+    provider.runScheduledCallbacks();
+
+    await assert.rejects(
+        result,
+        error =>
+            error.code === -32603 &&
+            error.message === "Failed to revoke permissions"
+    );
+    assert.equal(provider.address, address);
+    assert.equal(provider.selectedAddress, address);
+    assert.equal(provider.ready, true);
+    assert.deepEqual(events, []);
+    assert.equal(provider.pendingPermissionRevocations.has(payload.id), false);
+});
+
+test("fails closed locally when disconnect completion is indeterminate", async () => {
+    const provider = makeProvider();
+    provider.didGetLatestConfiguration = true;
+    const address = "0x0000000000000000000000000000000000000001";
+    provider.setAddress(address);
+    const events = [];
+    provider.on("accountsChanged", accounts => {
+        events.push(normalized(accounts));
+    });
+    const payload = {
+        id: 86,
+        method: "wallet_revokePermissions",
+        params: [{
+            eth_accounts: {},
+        }],
+    };
+
+    const result = provider.request(payload);
+    provider.processBigWalletResponse(payload.id, {
+        name: "revokePermissions",
+        provider: "ethereum",
+        error: "Failed to revoke permissions",
+        errorCode: -32603,
+        revokeLocally: true,
+    });
+    provider.runScheduledCallbacks();
+
+    await assert.rejects(
+        result,
+        error =>
+            error.code === -32603 &&
+            error.message === "Failed to revoke permissions"
+    );
+    assert.equal(provider.address, "");
+    assert.equal(provider.selectedAddress, "");
+    assert.equal(provider.ready, false);
+    assert.deepEqual(events, [[]]);
+    assert.equal(provider.pendingPermissionRevocations.has(payload.id), false);
 });
 
 test("rejects missing, null, and empty transaction params locally", async () => {

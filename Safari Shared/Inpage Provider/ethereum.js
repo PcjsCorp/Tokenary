@@ -25,6 +25,7 @@ class BigWalletEthereum extends EventEmitter {
     constructor() {
         super();
         const config = {address: "", chainId: "0x1"};
+        this.pendingPermissionRevocations = new Set();
         this.setConfig(config);
         this.idMapping = new IdMapping();
         this.callbacks = new Map();
@@ -191,6 +192,7 @@ class BigWalletEthereum extends EventEmitter {
                     case "wallet_switchEthereumChain":
                     case "wallet_requestPermissions":
                     case "wallet_getPermissions":
+                    case "wallet_revokePermissions":
                         return this._processPayload(payload);
                     case "eth_newFilter":
                     case "eth_newBlockFilter":
@@ -260,6 +262,8 @@ class BigWalletEthereum extends EventEmitter {
             case "wallet_getPermissions":
                 const permissions = [{"parentCapability": "eth_accounts"}];
                 return this.sendResponse(payload.id, permissions);
+            case "wallet_revokePermissions":
+                return this.wallet_revokePermissions(payload);
         }
     }
     
@@ -346,6 +350,54 @@ class BigWalletEthereum extends EventEmitter {
     wallet_addEthereumChain(payload) {
         this.postMessage("addEthereumChain", payload.id, payload.params[0]);
     }
+
+    wallet_revokePermissions(payload) {
+        const params = payload.params;
+        const permission = Array.isArray(params) && params.length === 1
+            ? params[0]
+            : null;
+        const permissionNames =
+            permission &&
+            typeof permission === "object" &&
+            !Array.isArray(permission)
+                ? Object.keys(permission)
+                : [];
+        const accountsPermission = permissionNames.length === 1 &&
+            permissionNames[0] === "eth_accounts"
+                ? permission.eth_accounts
+                : null;
+        if (!accountsPermission ||
+            typeof accountsPermission !== "object" ||
+            Array.isArray(accountsPermission)) {
+            throw new ProviderRpcError(-32602, "Invalid parameters");
+        }
+        this.pendingPermissionRevocations.add(payload.id);
+        try {
+            window.bigwallet.disconnect("ethereum", payload.id);
+        } catch (error) {
+            this.pendingPermissionRevocations.delete(payload.id);
+            throw error;
+        }
+    }
+
+    revokeAccountsPermission() {
+        const didChangeAccounts = !!this.address;
+        this.setAddress("");
+        if (didChangeAccounts) {
+            this.emit("accountsChanged", []);
+        }
+    }
+
+    completePermissionRevocation(id, shouldRevokeAccounts) {
+        if (!this.pendingPermissionRevocations.has(id)) {
+            return false;
+        }
+        this.pendingPermissionRevocations.delete(id);
+        if (shouldRevokeAccounts) {
+            this.revokeAccountsPermission();
+        }
+        return true;
+    }
     
     processBigWalletResponse(id, response) {
         if (response.name == "didLoadLatestConfiguration") {
@@ -363,6 +415,10 @@ class BigWalletEthereum extends EventEmitter {
         }
         
         if ("result" in response) {
+            if (response.name === "revokePermissions" &&
+                !this.completePermissionRevocation(id, true)) {
+                return;
+            }
             this.sendResponse(id, response.result);
         } else if ("results" in response) {
             if (response.name == "switchEthereumChain" || response.name == "addEthereumChain") {
@@ -375,6 +431,13 @@ class BigWalletEthereum extends EventEmitter {
                 this.updateAccount(response.name, response.results, response.chainId);
             }
         } else if ("error" in response) {
+            if (response.name === "revokePermissions" &&
+                !this.completePermissionRevocation(
+                    id,
+                    response.revokeLocally === true
+                )) {
+                return;
+            }
             this.sendError(
                 id,
                 response.error,

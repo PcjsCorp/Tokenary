@@ -133,6 +133,139 @@ test("registers its production message listener", () => {
     assert.equal(harness.runtimeListener(), harness.context.handleOnMessage);
 });
 
+test("responds to a correlated disconnect after removing only its provider", async () => {
+    const host = "wallet.example";
+    const storageWrite = deferred();
+    const storedConfigurations = {
+        [host]: [
+            { provider: "ethereum", chainId: "0x1" },
+            { provider: "solana", publicKey: "solana-public-key" },
+        ],
+    };
+    const writes = [];
+    const responses = [];
+    const harness = makeHarness({
+        storageGet: key => Promise.resolve({
+            [key]: storedConfigurations[key],
+        }),
+        storageSet: value => {
+            writes.push(normalized(value));
+            return storageWrite.promise;
+        },
+    });
+
+    const keepsChannelOpen = harness.context.handleOnMessage(
+        {
+            id: 73,
+            subject: "disconnect",
+            provider: "ethereum",
+            host,
+        },
+        {},
+        response => responses.push(normalized(response))
+    );
+    await settlePromises();
+
+    assert.equal(keepsChannelOpen, true);
+    assert.deepEqual(writes, [{
+        [host]: [
+            { provider: "solana", publicKey: "solana-public-key" },
+        ],
+    }]);
+    assert.deepEqual(responses, []);
+
+    storageWrite.resolve();
+    await settlePromises();
+
+    assert.deepEqual(responses, [{
+        name: "revokePermissions",
+        provider: "ethereum",
+        result: null,
+    }]);
+});
+
+test("returns an error when a correlated disconnect cannot be stored", async () => {
+    const storageWrite = deferred();
+    const responses = [];
+    const harness = makeHarness({
+        storageSet: () => storageWrite.promise,
+    });
+
+    harness.context.handleOnMessage(
+        {
+            id: 74,
+            subject: "disconnect",
+            provider: "ethereum",
+            host: "wallet.example",
+        },
+        {},
+        response => responses.push(normalized(response))
+    );
+    await settlePromises();
+
+    assert.deepEqual(responses, []);
+
+    storageWrite.reject(new Error("storage failed"));
+    await settlePromises();
+
+    assert.deepEqual(responses, [{
+        name: "revokePermissions",
+        provider: "ethereum",
+        error: "Failed to revoke permissions",
+        errorCode: -32603,
+    }]);
+});
+
+test("does not overwrite configurations when a disconnect read fails", async () => {
+    const writes = [];
+    const responses = [];
+    const harness = makeHarness({
+        storageGet: () => Promise.reject(new Error("storage read failed")),
+        storageSet: value => {
+            writes.push(normalized(value));
+            return Promise.resolve();
+        },
+    });
+
+    harness.context.handleOnMessage(
+        {
+            id: 75,
+            subject: "disconnect",
+            provider: "ethereum",
+            host: "wallet.example",
+        },
+        {},
+        response => responses.push(normalized(response))
+    );
+    await settlePromises();
+
+    assert.deepEqual(writes, []);
+    assert.deepEqual(responses, [{
+        name: "revokePermissions",
+        provider: "ethereum",
+        error: "Failed to revoke permissions",
+        errorCode: -32603,
+    }]);
+});
+
+test("preserves the empty response for an ID-less disconnect", async () => {
+    const responses = [];
+    const harness = makeHarness();
+
+    harness.context.handleOnMessage(
+        {
+            subject: "disconnect",
+            provider: "solana",
+            host: "wallet.example",
+        },
+        {},
+        response => responses.push(response)
+    );
+    await settlePromises();
+
+    assert.deepEqual(responses, [undefined]);
+});
+
 test("removes only the matching Solana configuration for unauthorized responses", async () => {
     const host = "wallet.example";
     const matchingPublicKey = "matching-public-key";

@@ -11,8 +11,11 @@ window.bigwallet.postMessage = (name, id, body, provider) => {
     window.postMessage({direction: "from-page-script", message: message}, "*");
 };
 
-window.bigwallet.disconnect = (provider) => {
+window.bigwallet.disconnect = (provider, id) => {
     const disconnectRequest = {subject: "disconnect", provider: provider};
+    if (typeof id !== "undefined") {
+        disconnectRequest.id = id;
+    }
     window.postMessage(disconnectRequest, "*");
 };
 
