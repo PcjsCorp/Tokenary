@@ -114,6 +114,7 @@ class ApproveTransactionViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updateAdaptiveLargeTitleLayout(Strings.sendTransaction, tableView: tableView)
+        updateTransactionEditorPopoverAnchorIfNeeded()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -181,8 +182,7 @@ class ApproveTransactionViewController: UIViewController {
             : CGSize(width: 230, height: 220)
 #endif
         if let hostingController = hostingController.popoverPresentationController {
-            hostingController.permittedArrowDirections = [.up]
-            hostingController.barButtonItem = navigationItem.rightBarButtonItem
+            configureTransactionEditorPopover(hostingController)
             hostingController.delegate = self
         }
         transactionEditorController = hostingController
@@ -193,6 +193,53 @@ class ApproveTransactionViewController: UIViewController {
             self.presentPendingApprovalAlertIfNeeded()
         }
     }
+
+    private func configureTransactionEditorPopover(
+        _ popover: UIPopoverPresentationController
+    ) {
+        popover.permittedArrowDirections = [.up]
+#if os(iOS)
+        if #available(iOS 26.0, *),
+           let navigationBar = navigationController?.navigationBar {
+            popover.sourceView = navigationBar
+            updateTransactionEditorPopoverAnchor(
+                popover,
+                in: navigationBar
+            )
+            return
+        }
+#endif
+        popover.barButtonItem = navigationItem.rightBarButtonItem
+    }
+
+    private func updateTransactionEditorPopoverAnchorIfNeeded() {
+#if os(iOS)
+        guard #available(iOS 26.0, *),
+              let popover =
+                transactionEditorController?.popoverPresentationController,
+              let navigationBar = navigationController?.navigationBar,
+              popover.sourceView === navigationBar else {
+            return
+        }
+        updateTransactionEditorPopoverAnchor(popover, in: navigationBar)
+#endif
+    }
+
+#if os(iOS)
+    @available(iOS 26.0, *)
+    private func updateTransactionEditorPopoverAnchor(
+        _ popover: UIPopoverPresentationController,
+        in navigationBar: UINavigationBar
+    ) {
+        guard let sourceRect =
+                navigationItem.rightBarButtonItem?.frame(in: navigationBar)
+        else {
+            return
+        }
+        guard popover.sourceRect != sourceRect else { return }
+        popover.sourceRect = sourceRect
+    }
+#endif
 
     private func dismissTransactionEditor(
         completion: @escaping () -> Void = {}
