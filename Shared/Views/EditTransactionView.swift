@@ -73,43 +73,6 @@ struct EditTransactionView: View {
         return cap >= feeBasisBaseFeePerGas
     }
 
-    private var capWarning: String? {
-        guard feeMode == .eip1559,
-              let baseFee = feeBasisBaseFeePerGas,
-              let priority = parsedMaxPriorityFee,
-              let cap = parsedMaxFee,
-              cap > baseFee,
-              cap < baseFee + priority else {
-            return nil
-        }
-        return Strings.feeCapReducesPriority + " " +
-            validationBasisDescription(baseFee)
-    }
-
-    private var validationBasisWarning: String? {
-        guard let baseFee = feeBasisBaseFeePerGas else { return nil }
-        switch feeMode {
-        case .legacy:
-            guard let gasPrice = parsedGasPrice,
-                  gasPrice < baseFee else { return nil }
-        case .eip1559:
-            guard let cap = parsedMaxFee,
-                  cap < baseFee else { return nil }
-        }
-        return Strings.feeMustExceedValidationBaseFee + " " +
-            validationBasisDescription(baseFee)
-    }
-
-    private var eip1559StructuralWarning: String? {
-        guard feeMode == .eip1559 else { return nil }
-        if let priority = parsedMaxPriorityFee,
-           let cap = parsedMaxFee,
-           cap < priority {
-            return Strings.maxFeeMustCoverPriority
-        }
-        return nil
-    }
-
     private var nonceIsValid: Bool {
         if nonce == initialNonceText {
             return !initialNonceWasPresent || initialNonce != nil
@@ -154,14 +117,6 @@ struct EditTransactionView: View {
             gasLimit: gasLimit,
             fee: candidateFee
         )
-    }
-
-    private var maximumNetworkFeeWarning: String? {
-        guard candidateFee != nil,
-              !maximumNetworkFeeFitsUInt256 else {
-            return nil
-        }
-        return Strings.maximumNetworkFeeTooLarge
     }
 
     private var suggestedGasPriceText: String? {
@@ -294,15 +249,6 @@ struct EditTransactionView: View {
                 .textFieldStyle(.roundedBorder)
                 .decimalInputKeyboard()
                 .accessibilityIdentifier("transactionGasPriceField")
-            if let validationBasisWarning {
-                validationWarning(validationBasisWarning)
-            }
-            if let maximumNetworkFeeWarning {
-                validationWarning(
-                    maximumNetworkFeeWarning,
-                    identifier: "transactionMaximumNetworkFeeWarning"
-                )
-            }
         }
     }
 
@@ -347,26 +293,6 @@ struct EditTransactionView: View {
                 ),
                 identifier: "transactionMaxFeeField"
             )
-
-            if let capWarning {
-                Text(capWarning)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("transactionFeeCapWarning")
-            }
-            if let eip1559StructuralWarning {
-                validationWarning(eip1559StructuralWarning)
-            }
-            if let validationBasisWarning {
-                validationWarning(validationBasisWarning)
-            }
-            if let maximumNetworkFeeWarning {
-                validationWarning(
-                    maximumNetworkFeeWarning,
-                    identifier: "transactionMaximumNetworkFeeWarning"
-                )
-            }
         }
     }
 
@@ -405,33 +331,6 @@ struct EditTransactionView: View {
                 .numberInputKeyboard()
                 .accessibilityIdentifier("transactionNonceField")
         }
-    }
-
-    private func baseFeeText(_ value: BigUInt?) -> String {
-        guard let value,
-              let gwei = Transaction.editableGwei(fromWei: value)
-        else {
-            return Strings.calculating.withEllipsis
-        }
-        return "\(gwei) \(Strings.gwei)"
-    }
-
-    private func validationBasisDescription(_ value: BigUInt) -> String {
-        let label = nextBaseFeePerGas == nil
-            ? Strings.currentBaseFee
-            : Strings.nextBaseFeeValidation
-        return "\(label): \(baseFeeText(value))"
-    }
-
-    private func validationWarning(
-        _ message: String,
-        identifier: String = "transactionFeeValidationWarning"
-    ) -> some View {
-        Text(message)
-            .font(.caption)
-            .foregroundStyle(.orange)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier(identifier)
     }
 
     private func resetGasPrice() {
