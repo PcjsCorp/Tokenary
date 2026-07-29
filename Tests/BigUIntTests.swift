@@ -86,6 +86,29 @@ final class BigUIntTests: XCTestCase {
         XCTAssertEqual(BigUInt(decimalString: "1500000000")?.gwei, "1")
         XCTAssertEqual(BigUInt(decimalString: "2500000000000000000000000000000")?.gwei, "2500000000000000000000")
 
+        let english = Locale(identifier: "en_US")
+        let russian = Locale(identifier: "ru_RU")
+        XCTAssertEqual(
+            BigUInt(54_860_108).compactGwei(locale: english),
+            "0.054"
+        )
+        XCTAssertEqual(
+            BigUInt(54_860_108).compactGwei(locale: russian),
+            "0,054"
+        )
+        XCTAssertEqual(
+            BigUInt(50_000_000).compactGwei(locale: english),
+            "0.05"
+        )
+        XCTAssertEqual(
+            BigUInt(1_500_000_000).compactGwei(locale: english),
+            "1.5"
+        )
+        XCTAssertEqual(
+            BigUInt(1).compactGwei(locale: english),
+            "0.000000001"
+        )
+
         let largeBalance = BigUInt(hexString: "123456789ABCDEFEDCBA98765432123456789ABCDEF")!
         XCTAssertEqual(largeBalance.eth(shortest: true), "430000000000000000000000000000000")
     }

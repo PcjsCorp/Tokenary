@@ -172,9 +172,13 @@ class ApproveTransactionViewController: UIViewController {
         let hostingController = UIHostingController(rootView: editTransactionView)
         hostingController.modalPresentationStyle = .popover
 #if os(visionOS)
-        hostingController.preferredContentSize = CGSize(width: 340, height: 500)
+        hostingController.preferredContentSize = transaction.usesEIP1559Fees
+            ? CGSize(width: 340, height: 380)
+            : CGSize(width: 230, height: 300)
 #else
-        hostingController.preferredContentSize = CGSize(width: 340, height: 440)
+        hostingController.preferredContentSize = transaction.usesEIP1559Fees
+            ? CGSize(width: 340, height: 295)
+            : CGSize(width: 230, height: 220)
 #endif
         if let hostingController = hostingController.popoverPresentationController {
             hostingController.permittedArrowDirections = [.up]
@@ -440,7 +444,7 @@ class ApproveTransactionViewController: UIViewController {
             cell.setup(
                 value: nil,
                 isEnabled: false,
-                detail: Strings.calculating.withEllipsis,
+                accessibilityDetail: Strings.calculating.withEllipsis,
                 delegate: self
             )
             sliderCell = cell
@@ -578,13 +582,13 @@ class ApproveTransactionViewController: UIViewController {
             cell.update(
                 value: isGasSliderTracking ? nil : value,
                 isEnabled: true,
-                detail: speedDetail()
+                accessibilityDetail: speedAccessibilityDetail()
             )
         } else {
             cell.update(
                 value: nil,
                 isEnabled: false,
-                detail: Strings.calculating.withEllipsis
+                accessibilityDetail: Strings.calculating.withEllipsis
             )
             if isGasSliderTracking {
                 sliderInteractionEnded()
@@ -592,7 +596,7 @@ class ApproveTransactionViewController: UIViewController {
         }
     }
 
-    private func speedDetail() -> String {
+    private func speedAccessibilityDetail() -> String {
         let semanticName = gasSpeedConfiguration.semanticSpeed(
             for: transaction
         ).localizedName
@@ -600,13 +604,14 @@ class ApproveTransactionViewController: UIViewController {
         let priority = gasSpeedConfiguration.speedPriorityFeePerGas(
             for: transaction
         )
-        guard let priority,
-              let priorityText = Transaction.editableGwei(fromWei: priority)
-        else {
+        guard let priority else {
             return semanticName
         }
-        return "\(semanticName) • \(Strings.priorityFee): " +
-            "\(priorityText) \(Strings.gwei)"
+        let fee =
+            Transaction.editableGwei(fromWei: priority).map {
+                "\($0) \(Strings.gwei)"
+            } ?? "\(priority.compactGwei()) \(Strings.gwei)"
+        return "\(semanticName) • \(Strings.priorityFee): \(fee)"
     }
     
     override func viewWillAppear(_ animated: Bool) {

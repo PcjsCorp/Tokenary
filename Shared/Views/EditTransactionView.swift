@@ -269,7 +269,7 @@ struct EditTransactionView: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
         }
-        .frame(minWidth: 300)
+        .frame(minWidth: feeMode == .eip1559 ? 300 : nil)
     }
 
     private var legacyFeeEditor: some View {
@@ -279,11 +279,12 @@ struct EditTransactionView: View {
                 Spacer()
                 if shouldOfferSuggestedLegacyFee {
                     Button(
-                        Strings.useSuggestedFees,
+                        Strings.reset,
                         action: resetGasPrice
                     )
                     .buttonStyle(.plain)
                     .foregroundColor(.secondary)
+                    .disableSecondaryActionFocusEffect()
                 }
             }
             TextField(
@@ -293,9 +294,6 @@ struct EditTransactionView: View {
                 .textFieldStyle(.roundedBorder)
                 .decimalInputKeyboard()
                 .accessibilityIdentifier("transactionGasPriceField")
-            Text(Strings.gwei)
-                .font(.caption)
-                .foregroundStyle(.secondary)
             if let validationBasisWarning {
                 validationWarning(validationBasisWarning)
             }
@@ -309,30 +307,37 @@ struct EditTransactionView: View {
     }
 
     private var eip1559FeeEditor: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(Strings.networkFees).fontWeight(.medium)
-                Spacer()
-                if shouldOfferSuggestedEIP1559Fees {
-                    Button(
-                        Strings.useSuggestedFees,
-                        action: resetEIP1559Fees
-                    )
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-                    .accessibilityIdentifier("useSuggestedTransactionFees")
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(Strings.priorityFee).fontWeight(.medium)
+                    Spacer()
+                    if shouldOfferSuggestedEIP1559Fees {
+                        Button(
+                            Strings.reset,
+                            action: resetEIP1559Fees
+                        )
+                        .buttonStyle(.plain)
+                        .foregroundColor(.secondary)
+                        .disableSecondaryActionFocusEffect()
+                        .accessibilityIdentifier(
+                            "useSuggestedTransactionFees"
+                        )
+                    }
                 }
+                TextField(
+                    Strings.customMaxPriorityFee,
+                    text: manuallyEditedFeeBinding(
+                        $maxPriorityFee,
+                        field: .priority
+                    )
+                )
+                    .textFieldStyle(.roundedBorder)
+                    .decimalInputKeyboard()
+                    .accessibilityIdentifier(
+                        "transactionMaxPriorityFeeField"
+                    )
             }
-
-            feeField(
-                title: Strings.maxPriorityFee,
-                placeholder: Strings.customMaxPriorityFee,
-                text: manuallyEditedFeeBinding(
-                    $maxPriorityFee,
-                    field: .priority
-                ),
-                identifier: "transactionMaxPriorityFeeField"
-            )
             feeField(
                 title: Strings.maxFee,
                 placeholder: Strings.customMaxFee,
@@ -342,30 +347,6 @@ struct EditTransactionView: View {
                 ),
                 identifier: "transactionMaxFeeField"
             )
-
-            HStack {
-                Text(Strings.currentBaseFee)
-                Spacer()
-                Text(baseFeeText(currentBaseFeePerGas))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-            .font(.caption)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("transactionCurrentBaseFee")
-
-            if nextBaseFeePerGas != nil {
-                HStack {
-                    Text(Strings.nextBaseFeeValidation)
-                    Spacer()
-                    Text(baseFeeText(nextBaseFeePerGas))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-                .font(.caption)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("transactionValidationBaseFee")
-            }
 
             if let capWarning {
                 Text(capWarning)
@@ -397,14 +378,11 @@ struct EditTransactionView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.subheadline)
+                .fontWeight(.medium)
             TextField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder)
                 .decimalInputKeyboard()
                 .accessibilityIdentifier(identifier)
-            Text(Strings.gwei)
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -587,6 +565,14 @@ struct EditTransactionView: View {
 }
 
 private extension View {
+
+    func disableSecondaryActionFocusEffect() -> some View {
+#if os(macOS)
+        return focusEffectDisabled()
+#else
+        return self
+#endif
+    }
 
     func decimalInputKeyboard() -> some View {
 #if canImport(UIKit)

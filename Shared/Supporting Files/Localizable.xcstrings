@@ -17436,6 +17436,286 @@
         }
       }
     },
+    "Reset" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إعادة تعيين"
+          }
+        },
+        "bn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "রিসেট করুন"
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restablir"
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resetovat"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nulstil"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzen"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Επαναφορά"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restablecer"
+          }
+        },
+        "es-419" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restablecer"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nollaa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialiser"
+          }
+        },
+        "gu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "રીસેટ કરો"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "איפוס"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रीसेट करें"
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vrati"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visszaállítás"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atur ulang"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ripristina"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リセット"
+          }
+        },
+        "kn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ಮರುಹೊಂದಿಸಿ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "재설정"
+          }
+        },
+        "ml" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "റീസെറ്റ് ചെയ്യുക"
+          }
+        },
+        "mr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रीसेट करा"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tetapkan semula"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tilbakestill"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resetten"
+          }
+        },
+        "or" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ରିସେଟ୍ କରନ୍ତୁ"
+          }
+        },
+        "pa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ਰੀਸੈੱਟ ਕਰੋ"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resetuj"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redefinir"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redefinir"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resetează"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить"
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obnoviť"
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ponastavi"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Återställ"
+          }
+        },
+        "ta" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "மீட்டமை"
+          }
+        },
+        "te" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "రీసెట్ చేయండి"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "รีเซ็ต"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sıfırla"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скинути"
+          }
+        },
+        "ur" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ری سیٹ کریں"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đặt lại"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重設"
+          }
+        }
+      }
+    },
     "Reset to" : {
       "comment" : "17344808652826427668",
       "localizations" : {
@@ -29232,282 +29512,282 @@
         }
       }
     },
-    "Estimated network fee" : {
+    "Estimated fee" : {
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "رسوم الشبكة المقدرة"
+            "value" : "الرسوم المقدرة"
           }
         },
         "bn" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "আনুমানিক নেটওয়ার্ক ফি"
+            "value" : "আনুমানিক ফি"
           }
         },
         "ca" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comissió estimada de la xarxa"
+            "value" : "Comissió estimada"
           }
         },
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Odhadovaný poplatek za síť"
+            "value" : "Odhadovaný poplatek"
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anslået netværksgebyr"
+            "value" : "Anslået gebyr"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geschätzte Netzwerkgebühr"
+            "value" : "Geschätzte Gebühr"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Εκτιμώμενη προμήθεια δικτύου"
+            "value" : "Εκτιμώμενη προμήθεια"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Estimated network fee"
+            "value" : "Estimated fee"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comisión de red estimada"
+            "value" : "Comisión estimada"
           }
         },
         "es-419" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comisión de red estimada"
+            "value" : "Comisión estimada"
           }
         },
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arvioitu verkkomaksu"
+            "value" : "Arvioitu maksu"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Frais de réseau estimés"
+            "value" : "Frais estimés"
           }
         },
         "gu" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "અંદાજિત નેટવર્ક ફી"
+            "value" : "અંદાજિત ફી"
           }
         },
         "he" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "עמלת רשת משוערת"
+            "value" : "עמלה משוערת"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अनुमानित नेटवर्क शुल्क"
+            "value" : "अनुमानित शुल्क"
           }
         },
         "hr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Procijenjena mrežna naknada"
+            "value" : "Procijenjena naknada"
           }
         },
         "hu" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Becsült hálózati díj"
+            "value" : "Becsült díj"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Perkiraan biaya jaringan"
+            "value" : "Perkiraan biaya"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Commissione di rete stimata"
+            "value" : "Commissione stimata"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ネットワーク手数料の目安"
+            "value" : "手数料の目安"
           }
         },
         "kn" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ಅಂದಾಜು ನೆಟ್‌ವರ್ಕ್ ಶುಲ್ಕ"
+            "value" : "ಅಂದಾಜು ಶುಲ್ಕ"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "예상 네트워크 수수료"
+            "value" : "예상 수수료"
           }
         },
         "ml" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "കണക്കാക്കിയ നെറ്റ്‌വർക്ക് ഫീസ്"
+            "value" : "കണക്കാക്കിയ ഫീസ്"
           }
         },
         "mr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अंदाजे नेटवर्क शुल्क"
+            "value" : "अंदाजे शुल्क"
           }
         },
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anggaran yuran rangkaian"
+            "value" : "Anggaran yuran"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Estimert nettverksgebyr"
+            "value" : "Estimert gebyr"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geschatte netwerkkosten"
+            "value" : "Geschatte kosten"
           }
         },
         "or" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ଆନୁମାନିକ ନେଟୱାର୍କ ଶୁଳ୍କ"
+            "value" : "ଆନୁମାନିକ ଶୁଳ୍କ"
           }
         },
         "pa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ਅਨੁਮਾਨਿਤ ਨੈੱਟਵਰਕ ਫੀਸ"
+            "value" : "ਅਨੁਮਾਨਿਤ ਫੀਸ"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Szacunkowa opłata sieciowa"
+            "value" : "Szacunkowa opłata"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Taxa de rede estimada"
+            "value" : "Taxa estimada"
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Taxa de rede estimada"
+            "value" : "Taxa estimada"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comision de rețea estimat"
+            "value" : "Comision estimat"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ориентировочная сетевая комиссия"
+            "value" : "Ориентировочная комиссия"
           }
         },
         "sk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Odhadovaný poplatok za sieť"
+            "value" : "Odhadovaný poplatok"
           }
         },
         "sl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ocenjena omrežna provizija"
+            "value" : "Ocenjena provizija"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beräknad nätavgift"
+            "value" : "Beräknad avgift"
           }
         },
         "ta" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "கணக்கிடப்பட்ட நெட்வொர்க் கட்டணம்"
+            "value" : "கணக்கிடப்பட்ட கட்டணம்"
           }
         },
         "te" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "అంచనా వేసిన నెట్‌వర్క్ రుసుము"
+            "value" : "అంచనా వేసిన రుసుము"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ค่าธรรมเนียมเครือข่ายโดยประมาณ"
+            "value" : "ค่าธรรมเนียมโดยประมาณ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tahmini ağ ücreti"
+            "value" : "Tahmini ücret"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Орієнтовна мережева комісія"
+            "value" : "Орієнтовна комісія"
           }
         },
         "ur" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تخمینی نیٹ ورک فیس"
+            "value" : "تخمینی فیس"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phí mạng ước tính"
+            "value" : "Phí ước tính"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "预计网络手续费"
+            "value" : "预计手续费"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "預估網路手續費"
+            "value" : "預估手續費"
           }
         }
       }
@@ -30632,282 +30912,282 @@
         }
       }
     },
-    "Maximum network fee" : {
+    "Maximum fee" : {
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "الحد الأقصى لرسوم الشبكة"
+            "value" : "الحد الأقصى للرسوم"
           }
         },
         "bn" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "সর্বাধিক নেটওয়ার্ক ফি"
+            "value" : "সর্বোচ্চ ফি"
           }
         },
         "ca" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comissió màxima de xarxa"
+            "value" : "Comissió màxima"
           }
         },
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maximální síťový poplatek"
+            "value" : "Maximální poplatek"
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maksimalt netværksgebyr"
+            "value" : "Max gebyr"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maximale Netzwerkgebühr"
+            "value" : "Maximale Gebühr"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Μέγιστη προμήθεια δικτύου"
+            "value" : "Μέγιστη προμήθεια"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maximum network fee"
+            "value" : "Maximum fee"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comisión máxima de red"
+            "value" : "Comisión máxima"
           }
         },
         "es-419" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comisión máxima de red"
+            "value" : "Comisión máxima"
           }
         },
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enimmäisverkkomaksu"
+            "value" : "Enimmäismaksu"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Frais de réseau maximum"
+            "value" : "Frais maximum"
           }
         },
         "gu" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "મહત્તમ નેટવર્ક ફી"
+            "value" : "મહત્તમ ફી"
           }
         },
         "he" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "עמלת רשת מקסימלית"
+            "value" : "עמלה מקסימלית"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अधिकतम नेटवर्क शुल्क"
+            "value" : "अधिकतम शुल्क"
           }
         },
         "hr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maksimalna mrežna naknada"
+            "value" : "Maksimalna naknada"
           }
         },
         "hu" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maximális hálózati díj"
+            "value" : "Maximális díj"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Biaya jaringan maksimum"
+            "value" : "Biaya maksimal"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Commissione di rete massima"
+            "value" : "Commissione massima"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ネットワーク手数料の上限"
+            "value" : "最大手数料"
           }
         },
         "kn" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ಗರಿಷ್ಠ ನೆಟ್‌ವರ್ಕ್ ಶುಲ್ಕ"
+            "value" : "ಗರಿಷ್ಠ ಶುಲ್ಕ"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "최대 네트워크 수수료"
+            "value" : "최대 수수료"
           }
         },
         "ml" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "പരമാവധി നെറ്റ്‌വർക്ക് ഫീസ്"
+            "value" : "പരമാവധി ഫീസ്"
           }
         },
         "mr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "कमाल नेटवर्क शुल्क"
+            "value" : "कमाल शुल्क"
           }
         },
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yuran rangkaian maksimum"
+            "value" : "Yuran maksimum"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maksimalt nettverksgebyr"
+            "value" : "Maksimalt gebyr"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maximale netwerkkosten"
+            "value" : "Maximale kosten"
           }
         },
         "or" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ସର୍ବାଧିକ ନେଟୱାର୍କ ଶୁଳ୍କ"
+            "value" : "ସର୍ବାଧିକ ଶୁଳ୍କ"
           }
         },
         "pa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ਵੱਧ ਤੋਂ ਵੱਧ ਨੈੱਟਵਰਕ ਫੀਸ"
+            "value" : "ਅਧਿਕਤਮ ਫੀਸ"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maksymalna opłata sieciowa"
+            "value" : "Maksymalna opłata"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Taxa máxima de rede"
+            "value" : "Taxa máxima"
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Taxa máxima de rede"
+            "value" : "Taxa máxima"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comision maxim de rețea"
+            "value" : "Comision maxim"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Максимальная сетевая комиссия"
+            "value" : "Максимальная комиссия"
           }
         },
         "sk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maximálny sieťový poplatok"
+            "value" : "Maximálny poplatok"
           }
         },
         "sl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Najvišja omrežna provizija"
+            "value" : "Najvišja provizija"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Max nätavgift"
+            "value" : "Maximal avgift"
           }
         },
         "ta" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "அதிகபட்ச நெட்வொர்க் கட்டணம்"
+            "value" : "அதிகபட்ச கட்டணம்"
           }
         },
         "te" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "గరిష్ట నెట్‌వర్క్ రుసుము"
+            "value" : "గరిష్ట రుసుము"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ค่าธรรมเนียมเครือข่ายสูงสุด"
+            "value" : "ค่าธรรมเนียมสูงสุด"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maksimum ağ ücreti"
+            "value" : "Maksimum ücret"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Максимальна мережева комісія"
+            "value" : "Максимальна комісія"
           }
         },
         "ur" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "زیادہ سے زیادہ نیٹ ورک فیس"
+            "value" : "زیادہ سے زیادہ فیس"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phí mạng tối đa"
+            "value" : "Phí tối đa"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最高网络手续费"
+            "value" : "最大费用"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最高網路手續費"
+            "value" : "最高費用"
           }
         }
       }
@@ -34828,286 +35108,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "交易速度"
-          }
-        }
-      }
-    },
-    "Use Suggested Fees" : {
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "استخدم الرسوم المقترحة"
-          }
-        },
-        "bn" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "প্রস্তাবিত ফি ব্যবহার করুন"
-          }
-        },
-        "ca" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utilitzeu les comissions suggerides"
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Použijte doporučené poplatky"
-          }
-        },
-        "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Brug foreslåede gebyrer"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nutzen Sie die empfohlenen Gebühren"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Χρησιμοποιήστε τις προτεινόμενες προμήθειες"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use Suggested Fees"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utilice comisiones sugeridas"
-          }
-        },
-        "es-419" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utilice comisiones sugeridas"
-          }
-        },
-        "fi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Käytä suositeltuja maksuja"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utiliser les frais suggérés"
-          }
-        },
-        "gu" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "સૂચવેલ ફીનો ઉપયોગ કરો"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "השתמש בעמלות מוצעות"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "सुझाए गए शुल्कों का उपयोग करें"
-          }
-        },
-        "hr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Koristite predložene naknade"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Használja a javasolt díjakat"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gunakan biaya yang disarankan"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utilizza le commissioni suggerite"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "推奨手数料を使用する"
-          }
-        },
-        "kn" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ಸೂಚಿಸಿದ ಶುಲ್ಕವನ್ನು ಬಳಸಿ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "권장 수수료 사용"
-          }
-        },
-        "ml" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "നിർദ്ദേശിച്ച ഫീസ് ഉപയോഗിക്കുക"
-          }
-        },
-        "mr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "सुचविलेले शुल्क वापरा"
-          }
-        },
-        "ms" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gunakan yuran yang dicadangkan"
-          }
-        },
-        "nb" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bruk foreslåtte gebyrer"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gebruik voorgestelde kosten"
-          }
-        },
-        "or" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ପ୍ରସ୍ତାବିତ ଶୁଳ୍କ ବ୍ୟବହାର କରନ୍ତୁ"
-          }
-        },
-        "pa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ਸੁਝਾਈਆਂ ਗਈਆਂ ਫੀਸਾਂ ਦੀ ਵਰਤੋਂ ਕਰੋ"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skorzystaj z sugerowanych opłat"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use taxas sugeridas"
-          }
-        },
-        "pt-PT" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utilize taxas sugeridas"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utilizați comisioanele sugerate"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Использовать рекомендуемые комиссии"
-          }
-        },
-        "sk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Použite navrhované poplatky"
-          }
-        },
-        "sl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uporabite predlagane provizije"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Använd föreslagna avgifter"
-          }
-        },
-        "ta" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "பரிந்துரைக்கப்பட்ட கட்டணங்களைப் பயன்படுத்தவும்"
-          }
-        },
-        "te" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "సూచించిన రుసుములను ఉపయోగించండి"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ใช้ค่าธรรมเนียมที่แนะนำ"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Önerilen Ücretleri Kullan"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Використовувати рекомендовані комісії"
-          }
-        },
-        "ur" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تجویز کردہ فیس استعمال کریں۔"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sử dụng phí đề xuất"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用建议的手续费"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用建議的手續費"
           }
         }
       }

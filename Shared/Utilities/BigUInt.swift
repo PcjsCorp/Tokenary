@@ -148,6 +148,33 @@ struct BigUInt: Equatable, Hashable, Comparable, Sendable, ExpressibleByIntegerL
     }
 
     var gwei: String {
+        formattedGwei(locale: .current)
+    }
+
+    func compactGwei(locale: Locale = .current) -> String {
+        let division = quotientAndRemainder(dividingBy: Self.decimalBase)
+        guard division.remainder != 0 else {
+            return division.quotient.description
+        }
+
+        let remainder = division.remainder.description
+        let paddedFraction =
+            String(repeating: "0", count: 9 - remainder.count) + remainder
+        let fraction = paddedFraction.prefix(3)
+            .reversed()
+            .drop(while: { $0 == "0" })
+            .reversed()
+
+        guard !fraction.isEmpty else {
+            return division.quotient.isZero
+                ? formattedGwei(locale: locale)
+                : division.quotient.description
+        }
+        let separator = locale.decimalSeparator ?? "."
+        return "\(division.quotient)\(separator)\(String(fraction))"
+    }
+
+    private func formattedGwei(locale: Locale) -> String {
         let division = quotientAndRemainder(dividingBy: Self.decimalBase)
         if !division.quotient.isZero {
             return division.quotient.description
@@ -155,6 +182,7 @@ struct BigUInt: Equatable, Hashable, Comparable, Sendable, ExpressibleByIntegerL
 
         let gweiDecimal = decimal.multiplying(byPowerOf10: -9)
         let formatter = NumberFormatter()
+        formatter.locale = locale
         formatter.minimumSignificantDigits = 1
         formatter.maximumSignificantDigits = 1
         return formatter.string(from: gweiDecimal) ?? .zero

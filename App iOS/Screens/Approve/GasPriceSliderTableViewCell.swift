@@ -59,18 +59,6 @@ class GasPriceSliderTableViewCell: UITableViewCell {
     private let slowSpeedLabel = makeSpeedLabel("🐢")
     private let fastSpeedLabel = makeSpeedLabel("🐇")
 
-    private let speedDetailLabel: UILabel = {
-        let label = UILabel()
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = .preferredFont(forTextStyle: .footnote)
-        label.adjustsFontForContentSizeCategory = true
-        label.textColor = .secondaryLabel
-        label.textAlignment = .center
-        label.numberOfLines = 0
-        label.accessibilityIdentifier = "transactionSpeedDetail"
-        return label
-    }()
-
     private weak var sliderDelegate: GasPriceSliderDelegate?
 
     private let slider: UISlider = {
@@ -111,20 +99,26 @@ class GasPriceSliderTableViewCell: UITableViewCell {
     func setup(
         value: Double?,
         isEnabled: Bool,
-        detail: String,
+        accessibilityDetail: String,
         delegate: GasPriceSliderDelegate
     ) {
         sliderDelegate = delegate
-        update(value: value, isEnabled: isEnabled, detail: detail)
+        update(
+            value: value,
+            isEnabled: isEnabled,
+            accessibilityDetail: accessibilityDetail
+        )
     }
     
-    func update(value: Double?, isEnabled: Bool, detail: String) {
+    func update(
+        value: Double?,
+        isEnabled: Bool,
+        accessibilityDetail: String
+    ) {
         slider.isEnabled = isEnabled
         slowSpeedLabel.alpha = isEnabled ? 1 : 0.5
         fastSpeedLabel.alpha = isEnabled ? 1 : 0.5
-        speedDetailLabel.alpha = isEnabled ? 1 : 0.5
-        speedDetailLabel.text = detail
-        slider.accessibilityValue = detail
+        slider.accessibilityValue = accessibilityDetail
         if let value = value {
             slider.value = Float(value)
         }
@@ -139,7 +133,6 @@ class GasPriceSliderTableViewCell: UITableViewCell {
         contentView.addSubview(slowSpeedLabel)
         contentView.addSubview(fastSpeedLabel)
         contentView.addSubview(slider)
-        contentView.addSubview(speedDetailLabel)
 
         slider.addTarget(self, action: #selector(sliderInteractionStarted(_:)), for: .touchDown)
         slider.addTarget(self, action: #selector(sliderInteractionEnded(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel])
@@ -152,24 +145,14 @@ class GasPriceSliderTableViewCell: UITableViewCell {
             slider.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
             slider.leadingAnchor.constraint(equalTo: slowSpeedLabel.trailingAnchor, constant: 8),
             slider.heightAnchor.constraint(equalToConstant: 33),
+            contentView.bottomAnchor.constraint(
+                equalTo: slider.bottomAnchor,
+                constant: 16
+            ),
 
             fastSpeedLabel.leadingAnchor.constraint(equalTo: slider.trailingAnchor, constant: 8),
             fastSpeedLabel.centerYAnchor.constraint(equalTo: slider.centerYAnchor),
-            contentView.trailingAnchor.constraint(equalTo: fastSpeedLabel.trailingAnchor, constant: 20),
-
-            speedDetailLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: 4),
-            speedDetailLabel.leadingAnchor.constraint(
-                equalTo: contentView.leadingAnchor,
-                constant: 20
-            ),
-            speedDetailLabel.trailingAnchor.constraint(
-                equalTo: contentView.trailingAnchor,
-                constant: -20
-            ),
-            contentView.bottomAnchor.constraint(
-                equalTo: speedDetailLabel.bottomAnchor,
-                constant: 16
-            )
+            contentView.trailingAnchor.constraint(equalTo: fastSpeedLabel.trailingAnchor, constant: 20)
         ])
     }
     

@@ -411,7 +411,7 @@ class ApproveTransactionViewController: NSViewController {
             )
         }
         gweiLabel.stringValue = detail.visible
-        gweiLabel.toolTip = detail.accessibility
+        gweiLabel.toolTip = detail.visible
         speedSlider.setAccessibilityValueDescription(detail.accessibility)
     }
 
@@ -423,15 +423,18 @@ class ApproveTransactionViewController: NSViewController {
         let priority = gasSpeedConfiguration.speedPriorityFeePerGas(
             for: transaction
         )
-        guard let priority,
-              let priorityText = Transaction.editableGwei(fromWei: priority)
-        else {
-            return (visible: semanticName, accessibility: semanticName)
+        guard let priority else {
+            return (visible: "", accessibility: semanticName)
         }
-        let fee = "\(priorityText) \(Strings.gwei)"
+        let fee = "\(priority.compactGwei()) \(Strings.gwei)"
+        let accessibilityFee =
+            Transaction.editableGwei(fromWei: priority).map {
+                "\($0) \(Strings.gwei)"
+            } ?? fee
         return (
-            visible: "\(semanticName)\n\(fee)",
-            accessibility: "\(semanticName) • \(Strings.priorityFee): \(fee)"
+            visible: fee,
+            accessibility:
+                "\(semanticName) • \(Strings.priorityFee): \(accessibilityFee)"
         )
     }
     
@@ -489,6 +492,11 @@ class ApproveTransactionViewController: NSViewController {
             }
         )
         let editWindow = makeHostingWindow(content: editTransactionView)
+        let editWindowHeight: CGFloat =
+            snapshot.transaction.usesEIP1559Fees ? 260 : 195
+        editWindow.setContentSize(
+            NSSize(width: 300, height: editWindowHeight)
+        )
         transactionEditorWindow = editWindow
         view.window?.beginSheet(editWindow)
     }

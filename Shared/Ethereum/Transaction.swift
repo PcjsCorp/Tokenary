@@ -859,7 +859,7 @@ struct Transaction {
             maximumFeeValue,
             chain: chain,
             price: price,
-            label: Strings.maximumNetworkFee
+            label: Strings.maximumFee
         )
     }
 
@@ -908,7 +908,7 @@ struct Transaction {
             feeWithSymbol(
                 chain: chain,
                 price: price,
-                label: Strings.estimatedNetworkFee
+                label: Strings.estimatedFee
             ),
             maximumFeeWithSymbol(chain: chain, price: price),
             Self.feePerGasWithLabel(
