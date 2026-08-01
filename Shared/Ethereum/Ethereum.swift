@@ -483,19 +483,20 @@ struct Ethereum {
                        existingGasPrice > previousBaseFee {
                         priority = existingGasPrice - previousBaseFee
                     } else {
-                        guard let standardPriority =
-                            estimate.info?.standard else {
+                        guard let recommendedPriority =
+                            estimate.info?.recommendedPriorityFee else {
                             completion(.unavailable(candidate, estimate))
                             return
                         }
-                        priority = standardPriority
+                        priority = recommendedPriority
                     }
                 } else {
-                    guard let standardPriority = estimate.info?.standard else {
+                    guard let recommendedPriority =
+                        estimate.info?.recommendedPriorityFee else {
                         completion(.unavailable(candidate, estimate))
                         return
                     }
-                    priority = standardPriority
+                    priority = recommendedPriority
                 }
                 let gasPrice: BigUInt?
                 if source == .slider {
@@ -534,11 +535,12 @@ struct Ethereum {
                         )
                         return
                     }
-                    guard let standardPriority = estimate.info?.standard else {
+                    guard let recommendedPriority =
+                        estimate.info?.recommendedPriorityFee else {
                         completion(.unavailable(candidate, estimate))
                         return
                     }
-                    priority = standardPriority
+                    priority = recommendedPriority
                 }
 
                 let maxFee: BigUInt
@@ -740,12 +742,12 @@ struct Ethereum {
                            gasPrice > previousBaseFee {
                             priorityFee = gasPrice - previousBaseFee
                         } else {
-                            guard let standardPriority =
-                                estimate.info?.standard else {
+                            guard let recommendedPriority =
+                                estimate.info?.recommendedPriorityFee else {
                                 unavailable(.gasPriceUnavailable)
                                 return
                             }
-                            priorityFee = standardPriority
+                            priorityFee = recommendedPriority
                         }
                         let refreshedGasPrice = baseFee + priorityFee
                         refreshedFee = Transaction.isValidUInt256(
@@ -813,12 +815,12 @@ struct Ethereum {
                             unsafeUserFee()
                             return
                         }
-                        guard let standardPriority =
-                            estimate.info?.standard else {
+                        guard let recommendedPriority =
+                            estimate.info?.recommendedPriorityFee else {
                             unavailable(.gasPriceUnavailable)
                             return
                         }
-                        priorityFee = standardPriority
+                        priorityFee = recommendedPriority
                     }
 
                     let fee: PreparedTransactionFee
@@ -918,7 +920,8 @@ struct Ethereum {
                         resolved.preparedFee?.gasPrice ?? requestedGasPrice
                 } else if estimate.support == .eip1559,
                           let baseFee {
-                    guard let priorityFee = estimate.info?.standard else {
+                    guard let priorityFee =
+                        estimate.info?.recommendedPriorityFee else {
                         unavailable(.gasPriceUnavailable)
                         return
                     }
@@ -1031,12 +1034,12 @@ struct Ethereum {
                         unsafeUserFee()
                         return
                     }
-                    guard let standardPriority =
-                        estimate.info?.standard else {
+                    guard let recommendedPriority =
+                        estimate.info?.recommendedPriorityFee else {
                         unavailable(.gasPriceUnavailable)
                         return
                     }
-                    priorityFee = standardPriority
+                    priorityFee = recommendedPriority
                 }
 
                 let maxFee: BigUInt

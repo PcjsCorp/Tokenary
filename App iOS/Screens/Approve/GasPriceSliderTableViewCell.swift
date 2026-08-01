@@ -26,34 +26,6 @@ private func makeSpeedLabel(_ text: String) -> UILabel {
     return label
 }
 
-private final class SemanticSpeedSlider: UISlider {
-
-    private static let semanticTicks =
-        GasSpeedConfiguration.semanticSliderPositions.map { Float($0) }
-
-    override func accessibilityIncrement() {
-        moveToSemanticTick(increasing: true)
-    }
-
-    override func accessibilityDecrement() {
-        moveToSemanticTick(increasing: false)
-    }
-
-    private func moveToSemanticTick(increasing: Bool) {
-        let nextValue: Float?
-        if increasing {
-            nextValue = Self.semanticTicks.first(where: { $0 > value + 0.01 })
-        } else {
-            nextValue = Self.semanticTicks.last(where: { $0 < value - 0.01 })
-        }
-        guard let nextValue else { return }
-        sendActions(for: .touchDown)
-        setValue(nextValue, animated: true)
-        sendActions(for: .valueChanged)
-        sendActions(for: .touchUpInside)
-    }
-}
-
 class GasPriceSliderTableViewCell: UITableViewCell {
 
     private let slowSpeedLabel = makeSpeedLabel("🐢")
@@ -62,13 +34,17 @@ class GasPriceSliderTableViewCell: UITableViewCell {
     private weak var sliderDelegate: GasPriceSliderDelegate?
 
     private let slider: UISlider = {
-        let slider = SemanticSpeedSlider()
+        let slider = UISlider()
         slider.translatesAutoresizingMaskIntoConstraints = false
         slider.minimumValue = 0
-        slider.maximumValue = 100
-        slider.value = 33
+        slider.maximumValue = Float(
+            GasSpeedConfiguration.maximumSliderPosition
+        )
+        slider.value = Float(
+            GasSpeedConfiguration.recommendedSliderPosition
+        )
         slider.isContinuous = true
-        slider.accessibilityLabel = Strings.transactionSpeed
+        slider.accessibilityLabel = Strings.priorityFee
         slider.accessibilityHint = Strings.transactionSpeedHint
         slider.accessibilityIdentifier = "transactionSpeedSlider"
         return slider

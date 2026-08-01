@@ -1032,10 +1032,8 @@ final class TransactionApprovalCoordinatorTests: XCTestCase {
 
     private static func makeGasInfo() -> GasService.Info {
         GasService.Info(
-            standard: 20,
-            slow: 10,
-            fast: 30,
-            rapid: 40
+            recommendedPriorityFee: 20,
+            highPriorityFee: 40
         )
     }
 

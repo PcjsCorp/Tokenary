@@ -623,11 +623,11 @@ class ApproveTransactionViewController: UIViewController {
         guard let cell = staticRows?.sliderCell else { return }
 
         if isSpeedConfigurationEnabled {
-            let value = gasSpeedConfiguration.sliderPosition(
-                for: transaction
-            )
+            let value: Double? = isGasSliderTracking
+                ? nil
+                : gasSpeedConfiguration.sliderPosition(for: transaction)
             cell.update(
-                value: isGasSliderTracking ? nil : value,
+                value: value,
                 isEnabled: true,
                 accessibilityDetail: speedAccessibilityDetail()
             )
@@ -644,21 +644,13 @@ class ApproveTransactionViewController: UIViewController {
     }
 
     private func speedAccessibilityDetail() -> String {
-        let semanticName = gasSpeedConfiguration.semanticSpeed(
-            for: transaction
-        ).localizedName
-
         let priority = gasSpeedConfiguration.speedPriorityFeePerGas(
             for: transaction
         )
-        guard let priority else {
-            return semanticName
-        }
-        let fee =
-            Transaction.editableGwei(fromWei: priority).map {
-                "\($0) \(Strings.gwei)"
-            } ?? "\(priority.compactGwei()) \(Strings.gwei)"
-        return "\(semanticName) • \(Strings.priorityFee): \(fee)"
+        guard let priority else { return Strings.calculating.withEllipsis }
+        return Transaction.editableGwei(fromWei: priority).map {
+            "\($0) \(Strings.gwei)"
+        } ?? "\(priority.compactGwei()) \(Strings.gwei)"
     }
     
     override func viewWillAppear(_ animated: Bool) {

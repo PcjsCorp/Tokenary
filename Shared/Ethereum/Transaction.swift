@@ -1038,7 +1038,7 @@ struct Transaction {
     ) {
         guard let priorityFee = Self.interpolatedFee(
             at: value,
-            tickValues: info.sliderValues
+            inRelationTo: info
         ) else { return }
 
         switch preparedFee {
@@ -1094,7 +1094,7 @@ struct Transaction {
         guard let current = speedPriorityFeePerGas else { return 0 }
         return Self.sliderPosition(
             for: current,
-            tickValues: info.sliderValues
+            inRelationTo: info
         )
     }
 
@@ -1136,47 +1136,70 @@ struct Transaction {
     ) -> BigUInt? {
         interpolatedFee(
             at: value,
-            tickValues: info.sliderValues
+            inRelationTo: info
         )
     }
 
     private static func interpolatedFee(
         at value: Double,
-        tickValues: [BigUInt]
+        inRelationTo info: GasService.Info
     ) -> BigUInt? {
-        let tickValuesCount = tickValues.count
+        let minimum = info.minimumSliderPriorityFee
+        let recommended = info.recommendedPriorityFee
+        let maximum = info.maximumSliderPriorityFee
         guard value.isFinite,
               value >= 0,
-              value <= 100,
-              tickValuesCount > 1,
-              zip(tickValues, tickValues.dropFirst()).allSatisfy({ $0 <= $1 })
+              value <= GasSpeedConfiguration.maximumSliderPosition,
+              isValidUInt256(minimum),
+              isValidUInt256(recommended),
+              isValidUInt256(maximum),
+              minimum <= recommended,
+              recommended <= maximum
         else { return nil }
 
-        if value.isZero {
-            return tickValues.first
-        } else if value == 100 {
-            return tickValues.last
+        switch value {
+        case 0:
+            return minimum
+        case GasSpeedConfiguration.recommendedSliderPosition:
+            return recommended
+        case GasSpeedConfiguration.maximumSliderPosition:
+            return maximum
+        case ..<GasSpeedConfiguration.recommendedSliderPosition:
+            return interpolatedFee(
+                from: minimum,
+                to: recommended,
+                segmentPosition: value
+            )
+        default:
+            return interpolatedFee(
+                from: recommended,
+                to: maximum,
+                segmentPosition:
+                    value - GasSpeedConfiguration.recommendedSliderPosition
+            )
         }
+    }
 
-        let segmentScale: UInt32 = 1_000_000
+    private static func interpolatedFee(
+        from lower: BigUInt,
+        to upper: BigUInt,
+        segmentPosition: Double
+    ) -> BigUInt? {
+        let segmentScale = sliderSegmentScale
         let scaledPosition = (
-            value * Double(tickValuesCount - 1) * Double(segmentScale) / 100
+            segmentPosition * Double(segmentScale) /
+                GasSpeedConfiguration.sliderSegmentWidth
         ).rounded()
-        guard scaledPosition.isFinite, scaledPosition >= 0 else { return nil }
-        let units = UInt64(scaledPosition)
-        let segment = min(
-            Int(units / UInt64(segmentScale)),
-            tickValuesCount - 2
-        )
-        let segmentUnits =
-            units - UInt64(segment) * UInt64(segmentScale)
-        let lower = tickValues[segment]
-        let upper = tickValues[segment + 1]
+        guard scaledPosition.isFinite,
+              scaledPosition >= 0,
+              scaledPosition <= Double(segmentScale),
+              lower <= upper else { return nil }
+        let segmentUnits = UInt32(scaledPosition)
         let distance = upper - lower
-        let scaledDistance = distance * BigUInt(segmentUnits)
-        let offset = scaledDistance.quotientAndRemainder(
-            dividingBy: segmentScale
-        ).quotient
+        let offset = interpolatedOffset(
+            distance: distance,
+            units: segmentUnits
+        )
         let result = lower + offset
         return isValidUInt256(result) ? min(result, upper) : nil
     }
@@ -1222,56 +1245,95 @@ struct Transaction {
     
     private static func sliderPosition(
         for current: BigUInt,
-        tickValues: [BigUInt]
+        inRelationTo info: GasService.Info
     ) -> Double {
-        let tickValuesCount = tickValues.count
-        guard tickValuesCount > 1 else { return 0 }
-        
-        if current <= tickValues[0] {
+        let minimum = info.minimumSliderPriorityFee
+        let recommended = info.recommendedPriorityFee
+        let maximum = info.maximumSliderPriorityFee
+        guard isValidUInt256(minimum),
+              isValidUInt256(recommended),
+              isValidUInt256(maximum),
+              minimum <= recommended,
+              recommended <= maximum else { return 0 }
+
+        if current == recommended {
+            return GasSpeedConfiguration.recommendedSliderPosition
+        } else if current <= minimum {
             return 0
-        } else if current >= tickValues[tickValuesCount - 1] {
-            return 100
-        }
-        
-        let step = Double(100) / Double(tickValuesCount - 1)
-        
-        for i in 1..<tickValuesCount where current < tickValues[i] {
-            let numerator = current - tickValues[i - 1]
-            let denominator = tickValues[i] - tickValues[i - 1]
-            guard !denominator.isZero else { continue }
-            let ratioScale: UInt32 = 1_000_000
-            let ratioUnits = fixedPointRatio(
-                numerator: numerator,
-                denominator: denominator,
-                scale: ratioScale
+        } else if current >= maximum {
+            return GasSpeedConfiguration.maximumSliderPosition
+        } else if current < recommended {
+            return sliderSegmentPosition(
+                numerator: current - minimum,
+                denominator: recommended - minimum
             )
-            let partialStep = Double(ratioUnits) / Double(ratioScale)
-            let fullSteps = Double(i - 1)
-            return (fullSteps + partialStep) * step
         }
-        
-        return 0
+
+        return GasSpeedConfiguration.recommendedSliderPosition +
+            sliderSegmentPosition(
+                numerator: current - recommended,
+                denominator: maximum - recommended
+            )
     }
 
-    private static func fixedPointRatio(
+    private static func sliderSegmentPosition(
         numerator: BigUInt,
-        denominator: BigUInt,
-        scale: UInt32
+        denominator: BigUInt
+    ) -> Double {
+        let units = closestSliderUnits(
+            numerator: numerator,
+            denominator: denominator
+        )
+        return Double(units) / Double(sliderSegmentScale) *
+            GasSpeedConfiguration.sliderSegmentWidth
+    }
+
+    private static let sliderSegmentScale: UInt32 = 1_000_000
+
+    private static func closestSliderUnits(
+        numerator: BigUInt,
+        denominator: BigUInt
     ) -> UInt32 {
-        guard !denominator.isZero, numerator < denominator else { return scale }
-        let target = numerator * BigUInt(UInt64(scale))
+        guard !denominator.isZero,
+              numerator < denominator else { return sliderSegmentScale }
+
         var lower: UInt32 = 0
-        var upper = scale
+        var upper = sliderSegmentScale
         while lower < upper {
             let distance = UInt64(upper) - UInt64(lower)
-            let midpoint = lower + UInt32((distance + 1) / 2)
-            if denominator * BigUInt(UInt64(midpoint)) <= target {
-                lower = midpoint
+            let midpoint = lower + UInt32(distance / 2)
+            if interpolatedOffset(
+                distance: denominator,
+                units: midpoint
+            ) < numerator {
+                lower = midpoint + 1
             } else {
-                upper = midpoint - 1
+                upper = midpoint
             }
         }
-        return lower
+
+        guard lower > 0 else { return lower }
+        let lowerUnits = lower - 1
+        let lowerFee = interpolatedOffset(
+            distance: denominator,
+            units: lowerUnits
+        )
+        let upperFee = interpolatedOffset(
+            distance: denominator,
+            units: lower
+        )
+        return numerator - lowerFee <= upperFee - numerator
+            ? lowerUnits
+            : lower
+    }
+
+    private static func interpolatedOffset(
+        distance: BigUInt,
+        units: UInt32
+    ) -> BigUInt {
+        (distance * BigUInt(UInt64(units))).quotientAndRemainder(
+            dividingBy: sliderSegmentScale
+        ).quotient
     }
     
 }

@@ -7,7 +7,6 @@ class ApproveTransactionViewController: NSViewController {
     
     @IBOutlet weak var infoTextViewBottomConstraint: NSLayoutConstraint!
     @IBOutlet weak var speedContainerStackView: NSStackView!
-    @IBOutlet weak var gweiLabel: NSTextField!
     
     @IBOutlet weak var titleLabel: NSTextField!
     @IBOutlet var metaTextView: NSTextView!
@@ -86,9 +85,11 @@ class ApproveTransactionViewController: NSViewController {
         }
         titleLabel.stringValue = Strings.sendTransaction
         speedSlider.isContinuous = true
-        speedSlider.numberOfTickMarks = 4
+        speedSlider.minValue = 0
+        speedSlider.maxValue = GasSpeedConfiguration.maximumSliderPosition
+        speedSlider.numberOfTickMarks = 3
         speedSlider.allowsTickMarkValuesOnly = false
-        speedSlider.setAccessibilityLabel(Strings.transactionSpeed)
+        speedSlider.setAccessibilityLabel(Strings.priorityFee)
         speedSlider.setAccessibilityHelp(Strings.transactionSpeedHint)
         speedSlider.setAccessibilityIdentifier("transactionSpeedSlider")
         editTransactionButton.setAccessibilityLabel(Strings.editFees)
@@ -96,15 +97,6 @@ class ApproveTransactionViewController: NSViewController {
             "editTransactionFeesButton"
         )
         editTransactionButton.toolTip = Strings.editFees
-        gweiLabel.setAccessibilityIdentifier(
-            "transactionSpeedDetail"
-        )
-        gweiLabel.maximumNumberOfLines = 2
-        gweiLabel.preferredMaxLayoutWidth = gweiLabel.frame.width
-        gweiLabel.cell?.usesSingleLineMode = false
-        gweiLabel.cell?.wraps = true
-        gweiLabel.cell?.lineBreakMode = .byWordWrapping
-        gweiLabel.cell?.truncatesLastVisibleLine = true
         _ = speedSlider.sendAction(on: [.leftMouseDown, .leftMouseDragged, .leftMouseUp])
         setSpeedConfigurationViews(enabled: false)
         updateInterface()
@@ -291,7 +283,6 @@ class ApproveTransactionViewController: NSViewController {
     private func updateInterface() {
         if !chain.isEthMainnet {
             speedContainerStackView.isHidden = true
-            gweiLabel.isHidden = true
             infoTextViewBottomConstraint.constant = 30
         }
         
@@ -299,7 +290,7 @@ class ApproveTransactionViewController: NSViewController {
         editTransactionButton.isEnabled = approvalSnapshot.canEdit
         updateSpeedConfigurationState()
         updateTextView()
-        updateSpeedDetail()
+        updateSpeedAccessibilityDetail()
     }
 
     private var canApproveTransaction: Bool {
@@ -390,7 +381,7 @@ class ApproveTransactionViewController: NSViewController {
         )
         speedSlider.doubleValue = sliderValue
         displayedGasSliderValue = sliderValue
-        updateSpeedDetail(value: sliderValue)
+        updateSpeedAccessibilityDetail()
     }
 
     private func setSpeedConfigurationViews(enabled: Bool) {
@@ -399,43 +390,23 @@ class ApproveTransactionViewController: NSViewController {
         speedSlider.isEnabled = enabled
     }
 
-    private func updateSpeedDetail(value: Double? = nil) {
+    private func updateSpeedAccessibilityDetail() {
         guard chain.isEthMainnet else { return }
-        let detail: (visible: String, accessibility: String)
-        if value != nil || gasSpeedConfiguration.info != nil {
-            detail = speedDetail()
-        } else {
-            detail = (
-                visible: Strings.calculating.withEllipsis,
-                accessibility: Strings.calculating.withEllipsis
-            )
-        }
-        gweiLabel.stringValue = detail.visible
-        gweiLabel.toolTip = detail.visible
-        speedSlider.setAccessibilityValueDescription(detail.accessibility)
+        let detail = gasSpeedConfiguration.info == nil
+            ? Strings.calculating.withEllipsis
+            : speedAccessibilityDetail()
+        speedSlider.setAccessibilityValueDescription(detail)
     }
 
-    private func speedDetail() -> (visible: String, accessibility: String) {
-        let semanticName = gasSpeedConfiguration.semanticSpeed(
-            for: transaction
-        ).localizedName
-
+    private func speedAccessibilityDetail() -> String {
         let priority = gasSpeedConfiguration.speedPriorityFeePerGas(
             for: transaction
         )
-        guard let priority else {
-            return (visible: "", accessibility: semanticName)
-        }
+        guard let priority else { return Strings.calculating.withEllipsis }
         let fee = "\(priority.compactGwei()) \(Strings.gwei)"
-        let accessibilityFee =
-            Transaction.editableGwei(fromWei: priority).map {
-                "\($0) \(Strings.gwei)"
-            } ?? fee
-        return (
-            visible: fee,
-            accessibility:
-                "\(semanticName) • \(Strings.priorityFee): \(accessibilityFee)"
-        )
+        return Transaction.editableGwei(fromWei: priority).map {
+            "\($0) \(Strings.gwei)"
+        } ?? fee
     }
     
     @IBAction func editTransactionButtonTapped(_ sender: Any) {
@@ -566,11 +537,9 @@ class ApproveTransactionViewController: NSViewController {
             return
         }
 
-        let semanticValue = semanticSliderValue(
-            forAccessibilityOrKeyboardCandidate: sender.doubleValue
-        )
+        let value = sender.doubleValue
         if let displayedGasSliderValue,
-           abs(semanticValue - displayedGasSliderValue) < 0.001 {
+           abs(value - displayedGasSliderValue) < 0.001 {
             sender.doubleValue = displayedGasSliderValue
             finishGasSliderInteraction(
                 cancelled: false
@@ -578,8 +547,7 @@ class ApproveTransactionViewController: NSViewController {
             updateInterface()
             return
         }
-        sender.doubleValue = semanticValue
-        applyGasSliderValue(semanticValue, inRelationTo: gasInfo)
+        applyGasSliderValue(value, inRelationTo: gasInfo)
         finishGasSliderInteraction(
             cancelled: false
         )
@@ -625,25 +593,6 @@ class ApproveTransactionViewController: NSViewController {
     private func resetGasSliderInteraction() {
         gasSliderInteractionStartValue = nil
         gasSliderInteractionDidMove = false
-    }
-
-    private func semanticSliderValue(
-        forAccessibilityOrKeyboardCandidate candidate: Double
-    ) -> Double {
-        let tierValues = GasSpeedConfiguration.semanticSliderPositions
-        guard let current = displayedGasSliderValue else {
-            return tierValues.min {
-                abs($0 - candidate) < abs($1 - candidate)
-            } ?? candidate
-        }
-
-        if candidate > current {
-            return tierValues.first { $0 > current + 0.001 } ?? 100
-        }
-        if candidate < current {
-            return tierValues.last { $0 < current - 0.001 } ?? 0
-        }
-        return current
     }
 
     @IBAction func actionButtonTapped(_ sender: Any) {

@@ -20,68 +20,43 @@ final class OneShotGate: @unchecked Sendable {
 final class GasService {
 
     struct Info: Equatable {
-        let standard: BigUInt
-        let slow: BigUInt
-        let fast: BigUInt
-        let rapid: BigUInt
+        let recommendedPriorityFee: BigUInt
+        let highPriorityFee: BigUInt
 
-        var sliderValues: [BigUInt] {
-            [slow, standard, fast, rapid]
+        init(
+            recommendedPriorityFee: BigUInt,
+            highPriorityFee: BigUInt
+        ) {
+            precondition(recommendedPriorityFee <= highPriorityFee)
+            self.recommendedPriorityFee = recommendedPriorityFee
+            self.highPriorityFee = highPriorityFee
+        }
+
+        var minimumSliderPriorityFee: BigUInt {
+            max(
+                PreparedTransactionFee.minimumPriorityFeePerGas,
+                recommendedPriorityFee.quotientAndRemainder(
+                    dividingBy: 2
+                ).quotient
+            )
+        }
+
+        var maximumSliderPriorityFee: BigUInt {
+            min(
+                highPriorityFee * BigUInt(2),
+                Transaction.maximumUInt256
+            )
         }
 
         static func relative(
-            to referencePriorityFee: BigUInt,
-            minimumPriorityFeePerGas: BigUInt? = nil
+            to referencePriorityFee: BigUInt
         ) -> Info? {
             guard Transaction.isValidUInt256(referencePriorityFee),
                   !referencePriorityFee.isZero else { return nil }
-
-            let minimumPriorityFee = max(
-                minimumPriorityFeePerGas ??
-                    PreparedTransactionFee.minimumPriorityFeePerGas,
-                PreparedTransactionFee.minimumPriorityFeePerGas
+            return Info(
+                recommendedPriorityFee: referencePriorityFee,
+                highPriorityFee: referencePriorityFee
             )
-            guard Transaction.isValidUInt256(minimumPriorityFee) else {
-                return nil
-            }
-            let standard = max(referencePriorityFee, minimumPriorityFee)
-
-            let maximum = Transaction.maximumUInt256
-            guard standard <= maximum - BigUInt(2),
-                  let rawSlow = scaled(
-                    standard,
-                    by: 85,
-                    roundingUp: false
-                  ) else { return nil }
-
-            let slow = max(rawSlow, minimumPriorityFee)
-            let minimumFast = standard + BigUInt(1)
-            let proportionalFast = scaled(standard, by: 120, roundingUp: true) ?? minimumFast
-            let fast = min(max(proportionalFast, minimumFast), maximum - BigUInt(1))
-
-            let minimumRapid = fast + BigUInt(1)
-            let proportionalRapid = scaled(standard, by: 140, roundingUp: true) ?? minimumRapid
-            let rapid = max(proportionalRapid, minimumRapid)
-
-            guard slow <= standard,
-                  standard < fast,
-                  fast < rapid,
-                  Transaction.isValidUInt256(rapid) else { return nil }
-
-            return Info(standard: standard, slow: slow, fast: fast, rapid: rapid)
-        }
-
-        private static func scaled(
-            _ value: BigUInt,
-            by percentage: UInt32,
-            roundingUp: Bool
-        ) -> BigUInt? {
-            var product = value * BigUInt(UInt64(percentage))
-            if roundingUp {
-                product = product + BigUInt(99)
-            }
-            let result = product.quotientAndRemainder(dividingBy: 100).quotient
-            return Transaction.isValidUInt256(result) ? result : nil
         }
     }
 
@@ -134,7 +109,9 @@ final class GasService {
         var recommendedEIP1559Fee: PreparedTransactionFee? {
             guard support == .eip1559,
                   let baseFee = nextBaseFee ?? currentBaseFee,
-                  let priorityFee = info?.standard else { return nil }
+                  let priorityFee = info?.recommendedPriorityFee else {
+                return nil
+            }
             return PreparedTransactionFee.recommendedEIP1559(
                 baseFeePerGas: baseFee,
                 maxPriorityFeePerGas: priorityFee
@@ -150,7 +127,7 @@ final class GasService {
                 return recommendedEIP1559Fee
             case (.eip1559, .legacy):
                 guard let baseFee = nextBaseFee ?? currentBaseFee,
-                      let priorityFee = info?.standard,
+                      let priorityFee = info?.recommendedPriorityFee,
                       let gasPrice = GasService.suggestedLegacyGasPrice(
                           baseFeePerGas: baseFee,
                           priorityFeePerGas: priorityFee
@@ -171,7 +148,7 @@ final class GasService {
 
     static let shared = GasService()
     private static let feeHistoryBlockCount: UInt = 10
-    private static let rewardPercentiles: [Double] = [10, 25, 50, 75]
+    private static let rewardPercentiles: [Double] = [50, 95]
     private static let capabilityCache = FeeMarketCapabilityCache()
 
     static func suggestedLegacyGasPrice(
@@ -555,7 +532,7 @@ final class GasService {
     }
 
     private static func priorityInfo(from history: EthereumFeeHistory) -> Info? {
-        let tierCount = rewardPercentiles.count
+        let percentileCount = rewardPercentiles.count
         guard let reward = history.reward,
               !reward.isEmpty,
               history.baseFeePerGas.count == reward.count + 1 else { return nil }
@@ -563,33 +540,32 @@ final class GasService {
         var rows = [[BigUInt]]()
         rows.reserveCapacity(reward.count)
         for row in reward {
-            guard row.count == tierCount else { return nil }
+            guard row.count == percentileCount else { return nil }
             let values = row.compactMap(validQuantity)
-            guard values.count == tierCount,
+            guard values.count == percentileCount,
                   zip(values, values.dropFirst()).allSatisfy({ $0 <= $1 }) else { return nil }
             rows.append(values)
         }
 
-        var tierValues = [BigUInt]()
-        tierValues.reserveCapacity(tierCount)
+        var percentileValues = [BigUInt]()
+        percentileValues.reserveCapacity(percentileCount)
         for column in rewardPercentiles.indices {
             let values = rows.map { $0[column] }.sorted()
             let upperMedian = values[values.count / 2]
-            tierValues.append(max(
+            percentileValues.append(max(
                 upperMedian,
                 PreparedTransactionFee.minimumPriorityFeePerGas
             ))
         }
 
-        let slow = tierValues[0]
-        let standard = tierValues[1]
-        let fast = tierValues[2]
-        let rapid = tierValues[3]
-        guard slow < standard,
-              standard < fast,
-              fast < rapid else { return nil }
+        let recommended = percentileValues[0]
+        let high = percentileValues[1]
+        guard recommended <= high else { return nil }
 
-        return Info(standard: standard, slow: slow, fast: fast, rapid: rapid)
+        return Info(
+            recommendedPriorityFee: recommended,
+            highPriorityFee: high
+        )
     }
 }
 
@@ -625,36 +601,10 @@ private final class FeeMarketCapabilityCache: @unchecked Sendable {
 }
 
 struct GasSpeedConfiguration {
-
-    enum SemanticSpeed: Equatable {
-        case slow
-        case standard
-        case fast
-        case rapid
-        case custom
-
-        var localizedName: String {
-            switch self {
-            case .slow:
-                return Strings.slow
-            case .standard:
-                return Strings.standard
-            case .fast:
-                return Strings.fast
-            case .rapid:
-                return Strings.rapid
-            case .custom:
-                return Strings.custom
-            }
-        }
-    }
-
-    static let semanticSliderPositions = [
-        0.0,
-        100.0 / 3.0,
-        200.0 / 3.0,
-        100.0
-    ]
+    static let sliderSegmentWidth = 100.0
+    static let recommendedSliderPosition = sliderSegmentWidth
+    static let maximumSliderPosition =
+        recommendedSliderPosition + sliderSegmentWidth
 
     private enum CurveIdentity: Equatable {
         case live
@@ -776,7 +726,7 @@ struct GasSpeedConfiguration {
             return priorityFee
         case .legacy(let gasPrice):
             guard let baseFee = transaction.feeBasisBaseFeePerGas,
-                  gasPrice > baseFee else {
+                  gasPrice >= baseFee else {
                 return nil
             }
             return gasPrice - baseFee
@@ -878,38 +828,8 @@ struct GasSpeedConfiguration {
         if let selection = validSliderSelection(for: transaction) {
             return selection.position
         }
-        if transaction.speedPriorityFeeSource == .automatic,
-           transaction.speedPriorityFeePerGas == info?.standard {
-            return Self.semanticSliderPositions[1]
-        }
         guard let info else { return 0 }
         return transaction.currentFeeInRelationTo(info: info)
-    }
-
-    func semanticSpeed(for transaction: Transaction) -> SemanticSpeed {
-        if transaction.speedPriorityFeeSource == .automatic,
-           let standard = info?.standard,
-           transaction.speedPriorityFeePerGas == standard {
-            return .standard
-        }
-        guard let selection = validSliderSelection(for: transaction) else {
-            return .custom
-        }
-
-        let positions = Self.semanticSliderPositions
-        let tolerance = 0.5
-        switch selection.position {
-        case let position where abs(position - positions[0]) <= tolerance:
-            return .slow
-        case let position where abs(position - positions[1]) <= tolerance:
-            return .standard
-        case let position where abs(position - positions[2]) <= tolerance:
-            return .fast
-        case let position where abs(position - positions[3]) <= tolerance:
-            return .rapid
-        default:
-            return .custom
-        }
     }
 
     mutating func commitManualFee(

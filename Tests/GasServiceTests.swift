@@ -7,7 +7,10 @@ final class GasServiceTests: XCTestCase {
 
     private let rpcURL = "https://rpc.example"
     private let alchemyRPCURL = "https://eth-mainnet.g.alchemy.com/v2"
-    private let fetchedInfo = GasService.Info(standard: 200, slow: 150, fast: 250, rapid: 300)
+    private let fetchedInfo = GasService.Info(
+        recommendedPriorityFee: 200,
+        highPriorityFee: 300
+    )
 
     private var alchemyEndpoint: EthereumRPCEndpoint {
         return .catalog(
@@ -31,11 +34,21 @@ final class GasServiceTests: XCTestCase {
         Array(repeating: row, count: 10)
     }
 
+    private func curveValues(_ info: GasService.Info?) -> [BigUInt]? {
+        guard let info else { return nil }
+        return [
+            info.minimumSliderPriorityFee,
+            info.recommendedPriorityFee,
+            info.highPriorityFee,
+            info.maximumSliderPriorityFee,
+        ]
+    }
+
     func testFetchEstimateRequestsExpectedHistoryAndUsesUpperMedianWithNextBaseFee() {
-        let first = ["0x1", "0xa", "0x14", "0x1e"]
-        let second = ["0x4", "0xd", "0x17", "0x21"]
-        let third = ["0x2", "0xb", "0x15", "0x1f"]
-        let fourth = ["0x3", "0xc", "0x16", "0x20"]
+        let first = ["0xa", "0x1e"]
+        let second = ["0xd", "0x21"]
+        let third = ["0xb", "0x1f"]
+        let fourth = ["0xc", "0x20"]
         let history = EthereumFeeHistory(
             baseFeePerGas:
                 Array(repeating: "0xffff", count: 9)
@@ -61,22 +74,25 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(rpc.feeHistoryCalls.first?.rpcURL, rpcURL)
         XCTAssertEqual(rpc.feeHistoryCalls.first?.blockCount, 10)
         XCTAssertEqual(rpc.feeHistoryCalls.first?.newestBlock, "0x1")
-        XCTAssertEqual(rpc.feeHistoryCalls.first?.rewardPercentiles, [10, 25, 50, 75])
+        XCTAssertEqual(rpc.feeHistoryCalls.first?.rewardPercentiles, [50, 95])
         XCTAssertEqual(rpc.feeHistoryCalls.first?.allowsAlchemyAuthorization, false)
         XCTAssertEqual(estimate.nextBaseFee, 100)
         XCTAssertEqual(estimate.currentBaseFee, 3)
         XCTAssertEqual(estimate.support, .eip1559)
         XCTAssertEqual(
             estimate.info,
-            GasService.Info(standard: 12, slow: 3, fast: 22, rapid: 32)
+            GasService.Info(
+                recommendedPriorityFee: 12,
+                highPriorityFee: 32
+            )
         )
-        XCTAssertEqual(estimate.info?.sliderValues, [3, 12, 22, 32])
+        XCTAssertEqual(curveValues(estimate.info), [6, 12, 32, 64])
     }
 
     func testFetchEstimatePropagatesTrustedAlchemyAuthorization() {
         let history = EthereumFeeHistory(
             baseFeePerGas: ["0x1", "0x64"],
-            reward: [["0x1", "0x2", "0x3", "0x4"]]
+            reward: [["0x1", "0x2"]]
         )
         let rpc = FakeEthereumRPCClient(feeHistoryResult: .success(history))
 
@@ -95,16 +111,16 @@ final class GasServiceTests: XCTestCase {
                 next: "0x64"
             ),
             reward: [
-                ["0x1", "0x2", "0x3", "0x4"],
-                ["0x1", "not-hex", "0x3", "0x4"],
-                ["0x5", "0x6", "0x7", "0x8"],
-                ["0x1", "0x2", "0x3", "0x4"],
-                ["0x1", "0x2", "0x3", "0x4"],
-                ["0x1", "0x2", "0x3", "0x4"],
-                ["0x1", "0x2", "0x3", "0x4"],
-                ["0x1", "0x2", "0x3", "0x4"],
-                ["0x1", "0x2", "0x3", "0x4"],
-                ["0x1", "0x2", "0x3", "0x4"],
+                ["0x1", "0x2"],
+                ["0x1", "not-hex"],
+                ["0x5", "0x6"],
+                ["0x1", "0x2"],
+                ["0x1", "0x2"],
+                ["0x1", "0x2"],
+                ["0x1", "0x2"],
+                ["0x1", "0x2"],
+                ["0x1", "0x2"],
+                ["0x1", "0x2"],
             ]
         )
         let rpc = FakeEthereumRPCClient(
@@ -114,17 +130,17 @@ final class GasServiceTests: XCTestCase {
 
         let estimate = fetchEstimate(using: GasService(rpc: rpc))
 
-        XCTAssertEqual(estimate.info?.sliderValues, [1, 1, 2, 3])
+        XCTAssertEqual(curveValues(estimate.info), [1, 1, 1, 2])
         XCTAssertEqual(estimate.nextBaseFee, 100)
     }
 
-    func testFeeHistoryUsesFallbackMetadataWhenPercentileTotalsCollide() {
+    func testFeeHistoryAcceptsEqualPercentilesWithoutFallback() {
         let history = EthereumFeeHistory(
             baseFeePerGas: fullBaseFees(
                 current: "0x1",
                 next: "0x65"
             ),
-            reward: fullRewards(["0x0", "0x0", "0x0", "0x0"])
+            reward: fullRewards(["0x64", "0x64"])
         )
         let rpc = FakeEthereumRPCClient(
             feeHistoryResult: .success(history),
@@ -133,17 +149,38 @@ final class GasServiceTests: XCTestCase {
 
         let estimate = fetchEstimate(using: GasService(rpc: rpc))
 
-        XCTAssertEqual(estimate.info?.sliderValues, [1, 1, 2, 3])
+        XCTAssertEqual(curveValues(estimate.info), [50, 100, 100, 200])
         XCTAssertEqual(estimate.nextBaseFee, 101)
+        XCTAssertEqual(rpc.maxPriorityFeeCallCount, 0)
+
+        guard let info = estimate.info else {
+            return XCTFail("Expected an editable equal-percentile curve")
+        }
+        let fixtures: [(Double, BigUInt)] = [
+            (0, 50),
+            (50, 75),
+            (100, 100),
+            (150, 150),
+            (200, 200),
+        ]
+        for (position, expectedFee) in fixtures {
+            XCTAssertEqual(
+                Transaction.priorityFee(
+                    atSpeed: position,
+                    inRelationTo: info
+                ),
+                expectedFee
+            )
+        }
     }
 
-    func testGnosisIncidentFallbackProducesOneWeiTipAnd613WeiCap() {
+    func testGnosisIncidentZeroRewardsProduceOneWeiTipAnd613WeiCap() {
         let history = EthereumFeeHistory(
             baseFeePerGas: fullBaseFees(
                 current: "0x132",
                 next: "0x132"
             ),
-            reward: fullRewards(["0x0", "0x0", "0x0", "0x0"])
+            reward: fullRewards(["0x0", "0x0"])
         )
         let rpc = FakeEthereumRPCClient(
             feeHistoryResult: .success(history),
@@ -153,7 +190,7 @@ final class GasServiceTests: XCTestCase {
         let estimate = fetchEstimate(using: GasService(rpc: rpc))
 
         XCTAssertEqual(estimate.nextBaseFee, 306)
-        XCTAssertEqual(estimate.info?.standard, 1)
+        XCTAssertEqual(estimate.info?.recommendedPriorityFee, 1)
         XCTAssertEqual(
             estimate.recommendedEIP1559Fee,
             .eip1559(maxPriorityFeePerGas: 1, maxFeePerGas: 613)
@@ -169,9 +206,9 @@ final class GasServiceTests: XCTestCase {
                         current: "0x1",
                         next: "0x64"
                     ),
-                    reward: [["0x1", "0x2", "0x3"]]
+                    reward: [["0x1"]]
                         + Array(
-                            fullRewards(["0x1", "0x2", "0x3", "0x4"])
+                            fullRewards(["0x1", "0x2"])
                                 .dropLast()
                         )
                 )
@@ -183,9 +220,9 @@ final class GasServiceTests: XCTestCase {
                         current: "0x1",
                         next: "0x64"
                     ),
-                    reward: [["0x1", "0x3", "0x2", "0x4"]]
+                    reward: [["0x3", "0x2"]]
                         + Array(
-                            fullRewards(["0x1", "0x2", "0x3", "0x4"])
+                            fullRewards(["0x1", "0x2"])
                                 .dropLast()
                         )
                 )
@@ -197,9 +234,9 @@ final class GasServiceTests: XCTestCase {
                         current: "0x1",
                         next: "0x64"
                     ),
-                    reward: [["0x1", "invalid", "0x3", "0x4"]]
+                    reward: [["0x1", "invalid"]]
                         + Array(
-                            fullRewards(["0x1", "0x2", "0x3", "0x4"])
+                            fullRewards(["0x1", "0x2"])
                                 .dropLast()
                         )
                 )
@@ -225,8 +262,8 @@ final class GasServiceTests: XCTestCase {
             let estimate = fetchEstimate(using: GasService(rpc: rpc), description: name)
 
             XCTAssertEqual(
-                estimate.info?.sliderValues,
-                [1, 1, 2, 3],
+                curveValues(estimate.info),
+                [1, 1, 1, 2],
                 name
             )
             XCTAssertEqual(
@@ -247,9 +284,7 @@ final class GasServiceTests: XCTestCase {
                         current: "0x64",
                         next: "0x6e"
                     ),
-                    reward: fullRewards(
-                        ["0x0", "0x0", "0x0", "0x0"]
-                    )
+                    reward: nil
                 )
             )
         )
@@ -274,7 +309,7 @@ final class GasServiceTests: XCTestCase {
             feeHistoryResult: .success(
                 EthereumFeeHistory(
                     baseFeePerGas: ["0x64", "0x6e"],
-                    reward: [["0x0", "0x0", "0x0", "0x0"]]
+                    reward: nil
                 )
             ),
             gasPriceResult: .success("0x64")
@@ -287,7 +322,7 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertEqual(estimate.support, .eip1559)
         XCTAssertEqual(estimate.gasPrice, 100)
-        XCTAssertEqual(estimate.info?.sliderValues, [1, 1, 2, 3])
+        XCTAssertEqual(curveValues(estimate.info), [1, 1, 1, 2])
         XCTAssertEqual(rpc.maxPriorityFeeCallCount, 1)
         XCTAssertEqual(rpc.gasPriceCallCount, 1)
     }
@@ -297,7 +332,7 @@ final class GasServiceTests: XCTestCase {
             feeHistoryResult: .success(
                 EthereumFeeHistory(
                     baseFeePerGas: ["0x64", "0x6e"],
-                    reward: [["0x0", "0x0", "0x0", "0x0"]]
+                    reward: nil
                 )
             ),
             gasPriceResult: .success("0x66")
@@ -310,7 +345,7 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertEqual(estimate.currentBaseFee, 100)
         XCTAssertEqual(estimate.nextBaseFee, 110)
-        XCTAssertEqual(estimate.info?.sliderValues, [1, 2, 3, 4])
+        XCTAssertEqual(curveValues(estimate.info), [1, 2, 2, 4])
         XCTAssertEqual(
             estimate.recommendedEIP1559Fee,
             .eip1559(maxPriorityFeePerGas: 2, maxFeePerGas: 222)
@@ -322,7 +357,7 @@ final class GasServiceTests: XCTestCase {
             feeHistoryResult: .success(
                 EthereumFeeHistory(
                     baseFeePerGas: ["0x64", "0x32"],
-                    reward: [["0x0", "0x0", "0x0", "0x0"]]
+                    reward: nil
                 )
             ),
             gasPriceResult: .success("0x66")
@@ -335,7 +370,7 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertEqual(estimate.currentBaseFee, 100)
         XCTAssertEqual(estimate.nextBaseFee, 50)
-        XCTAssertEqual(estimate.info?.sliderValues, [1, 2, 3, 4])
+        XCTAssertEqual(curveValues(estimate.info), [1, 2, 2, 4])
         XCTAssertEqual(
             estimate.recommendedEIP1559Fee,
             .eip1559(maxPriorityFeePerGas: 2, maxFeePerGas: 102)
@@ -349,7 +384,7 @@ final class GasServiceTests: XCTestCase {
             feeHistoryResult: .success(
                 EthereumFeeHistory(
                     baseFeePerGas: ["0x0", "0x0"],
-                    reward: [["0x0", "0x0", "0x0", "0x0"]]
+                    reward: nil
                 )
             ),
             maxPriorityFeeResult: .success(
@@ -367,7 +402,7 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertEqual(estimate.support, .eip1559)
         XCTAssertNil(estimate.gasPrice)
-        XCTAssertEqual(estimate.info?.standard, floor)
+        XCTAssertEqual(estimate.info?.recommendedPriorityFee, floor)
         XCTAssertEqual(
             estimate.recommendedEIP1559Fee,
             .eip1559(
@@ -398,9 +433,7 @@ final class GasServiceTests: XCTestCase {
                             current: baseFeeHex,
                             next: baseFeeHex
                         ),
-                        reward: fullRewards(
-                            ["0x0", "0x0", "0x0", "0x0"]
-                        )
+                        reward: nil
                     )
                 ),
                 maxPriorityFeeResult: maxPriorityFeeResult,
@@ -420,16 +453,16 @@ final class GasServiceTests: XCTestCase {
             description: "floored absurd suggestion"
         )
         XCTAssertEqual(
-            flooredEstimate.info?.standard,
+            flooredEstimate.info?.recommendedPriorityFee,
             BigUInt(1_000) * gwei
         )
         XCTAssertEqual(
-            flooredEstimate.info?.sliderValues,
+            curveValues(flooredEstimate.info),
             [
-                BigUInt(850) * gwei,
+                BigUInt(500) * gwei,
                 BigUInt(1_000) * gwei,
-                BigUInt(1_200) * gwei,
-                BigUInt(1_400) * gwei,
+                BigUInt(1_000) * gwei,
+                BigUInt(2_000) * gwei,
             ]
         )
 
@@ -441,7 +474,7 @@ final class GasServiceTests: XCTestCase {
             description: "base-relative cap"
         )
         XCTAssertEqual(
-            largeBaseEstimate.info?.standard,
+            largeBaseEstimate.info?.recommendedPriorityFee,
             BigUInt(1_600) * gwei
         )
 
@@ -450,7 +483,7 @@ final class GasServiceTests: XCTestCase {
             maxPriorityFeeResult: .success("0x2"),
             description: "modest suggestion"
         )
-        XCTAssertEqual(modestEstimate.info?.sliderValues, [1, 2, 3, 4])
+        XCTAssertEqual(curveValues(modestEstimate.info), [1, 2, 2, 4])
 
         let fallbackGasPrice = absurdTip + BigUInt(100)
         let fallbackEstimate = estimate(
@@ -462,7 +495,7 @@ final class GasServiceTests: XCTestCase {
             description: "capped gas-price fallback"
         )
         XCTAssertEqual(
-            fallbackEstimate.info?.standard,
+            fallbackEstimate.info?.recommendedPriorityFee,
             BigUInt(1_000) * gwei
         )
         XCTAssertEqual(fallbackEstimate.gasPrice, fallbackGasPrice)
@@ -475,7 +508,7 @@ final class GasServiceTests: XCTestCase {
             description: "polygon-shaped suggestion"
         )
         XCTAssertEqual(
-            polygonEstimate.info?.standard,
+            polygonEstimate.info?.recommendedPriorityFee,
             BigUInt(500) * gwei
         )
     }
@@ -484,8 +517,8 @@ final class GasServiceTests: XCTestCase {
         let history = EthereumFeeHistory(
             baseFeePerGas: ["0x63", "0x64", "0x6e"],
             reward: [
-                ["0x1", "0x2", "0x3", "0x4"],
-                ["0x2", "0x3", "0x4", "0x5"],
+                ["0x1", "0x4"],
+                ["0x2", "0x5"],
             ]
         )
         let rpc = FakeEthereumRPCClient(
@@ -506,7 +539,7 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(estimate.support, .eip1559)
         XCTAssertEqual(estimate.currentBaseFee, 100)
         XCTAssertEqual(estimate.nextBaseFee, 110)
-        XCTAssertEqual(estimate.info?.sliderValues, [2, 3, 4, 5])
+        XCTAssertEqual(curveValues(estimate.info), [1, 2, 5, 10])
         XCTAssertEqual(rpc.maxPriorityFeeCallCount, 0)
         XCTAssertEqual(rpc.gasPriceCallCount, 0)
     }
@@ -530,7 +563,7 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(estimate.support, .eip1559)
         XCTAssertEqual(estimate.currentBaseFee, 0)
         XCTAssertEqual(estimate.nextBaseFee, 1)
-        XCTAssertEqual(estimate.info?.standard, 1)
+        XCTAssertEqual(estimate.info?.recommendedPriorityFee, 1)
         XCTAssertEqual(rpc.maxPriorityFeeCallCount, 1)
         XCTAssertEqual(rpc.gasPriceCallCount, 0)
     }
@@ -544,7 +577,7 @@ final class GasServiceTests: XCTestCase {
             EthereumFeeHistory(
                 baseFeePerGas: Array(repeating: "0x1", count: 12),
                 reward: Array(
-                    repeating: ["0x1", "0x2", "0x3", "0x4"],
+                    repeating: ["0x1", "0x2"],
                     count: 11
                 )
             ),
@@ -577,8 +610,8 @@ final class GasServiceTests: XCTestCase {
                 EthereumFeeHistory(
                     baseFeePerGas: ["0x63", "0x64", "0x6e"],
                     reward: [
-                        ["0x1", "0x2", "0x3", "0x4"],
-                        ["0x2", "0x3", "0x4", "0x5"],
+                        ["0x1", "0x4"],
+                        ["0x2", "0x5"],
                     ]
                 )
             ),
@@ -604,7 +637,7 @@ final class GasServiceTests: XCTestCase {
     func testInvalidNextBaseFeeRemainsUnknownAndUsesLatestBlockFallback() {
         let history = EthereumFeeHistory(
             baseFeePerGas: ["0x1", "invalid"],
-            reward: [["0x1", "0x2", "0x3", "0x4"]]
+            reward: [["0x1", "0x2"]]
         )
         let rpc = FakeEthereumRPCClient(feeHistoryResult: .success(history))
 
@@ -647,46 +680,51 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(rpc.feeHistoryCalls.count, 1)
     }
 
-    func testRelativeTiersUseExactPercentagesAndRoundingDirections() {
-        XCTAssertEqual(GasService.Info.relative(to: 100)?.sliderValues, [85, 100, 120, 140])
-        XCTAssertEqual(GasService.Info.relative(to: 101)?.sliderValues, [85, 101, 122, 142])
-    }
-
-    func testRelativeTiersRepairTinyAnchorCollisions() {
-        XCTAssertEqual(GasService.Info.relative(to: 1)?.sliderValues, [1, 1, 2, 3])
-        XCTAssertEqual(GasService.Info.relative(to: 2)?.sliderValues, [1, 2, 3, 4])
-    }
-
-    func testRelativeTiersClampSlowToMinimumPriorityFee() {
+    func testRelativeCurveUsesHalfAndDoubleReference() {
         XCTAssertEqual(
-            GasService.Info.relative(
-                to: 102,
-                minimumPriorityFeePerGas: 100
-            )?.sliderValues,
-            [100, 102, 123, 143]
+            curveValues(GasService.Info.relative(to: 100)),
+            [50, 100, 100, 200]
+        )
+        XCTAssertEqual(
+            curveValues(GasService.Info.relative(to: 101)),
+            [50, 101, 101, 202]
         )
     }
 
-    func testRelativeTiersRemainEnabledWhenMinimumExceedsReference() {
-        XCTAssertEqual(
-            GasService.Info.relative(
-                to: 80,
-                minimumPriorityFeePerGas: 100
-            )?.sliderValues,
-            [100, 100, 120, 140]
-        )
+    func testRelativeCurveHandlesTinyReferences() {
+        XCTAssertEqual(curveValues(GasService.Info.relative(to: 1)), [1, 1, 1, 2])
+        XCTAssertEqual(curveValues(GasService.Info.relative(to: 2)), [1, 2, 2, 4])
     }
 
-    func testRelativeTiersRejectZeroAndOverflow() {
+    func testRelativeCurveRejectsZeroAndSaturatesAtUInt256Maximum() {
         XCTAssertNil(GasService.Info.relative(to: 0))
         let maximum = BigUInt(data: Data(repeating: 0xff, count: 32))
-        let nearMaximum = maximum - BigUInt(2)
-        let expectedSlow = (nearMaximum * BigUInt(85))
-            .quotientAndRemainder(dividingBy: 100).quotient
-        XCTAssertEqual(GasService.Info.relative(to: nearMaximum)?.sliderValues,
-                       [expectedSlow, nearMaximum, maximum - BigUInt(1), maximum])
-        XCTAssertNil(GasService.Info.relative(to: maximum - BigUInt(1)))
-        XCTAssertNil(GasService.Info.relative(to: maximum))
+        let expectedMinimum = maximum.quotientAndRemainder(
+            dividingBy: 2
+        ).quotient
+        XCTAssertEqual(
+            curveValues(GasService.Info.relative(to: maximum)),
+            [expectedMinimum, maximum, maximum, maximum]
+        )
+        XCTAssertNil(GasService.Info.relative(to: maximum + BigUInt(1)))
+    }
+
+    func testSpeedPriorityFeeReportsKnownZeroForLegacyTransaction() {
+        let transaction = Transaction(
+            from: "0x0",
+            to: "0x1",
+            value: nil,
+            data: "0x",
+            preparedFee: .legacy(gasPrice: 100),
+            currentBaseFeePerGas: 100
+        )
+
+        XCTAssertEqual(
+            GasSpeedConfiguration().speedPriorityFeePerGas(
+                for: transaction
+            ),
+            0
+        )
     }
 
     func testGasSpeedConfigurationKeepsRPCInfoWhenItArrivesFirst() {
@@ -702,12 +740,12 @@ final class GasServiceTests: XCTestCase {
         var configuration = GasSpeedConfiguration()
 
         XCTAssertTrue(configuration.installTransactionFallback(feePerGas: 100))
-        XCTAssertEqual(configuration.info?.sliderValues, [85, 100, 120, 140])
+        XCTAssertEqual(curveValues(configuration.info), [50, 100, 100, 200])
         XCTAssertTrue(configuration.applyFetchedEstimate(.init(info: fetchedInfo, nextBaseFee: 100)))
         XCTAssertEqual(configuration.info, fetchedInfo)
     }
 
-    func testGasSpeedConfigurationFreezesTierMappingWithoutCommittingGasPrice() {
+    func testGasSpeedConfigurationFreezesCurveWithoutCommittingGasPrice() {
         var configuration = GasSpeedConfiguration()
 
         XCTAssertTrue(configuration.installTransactionFallback(feePerGas: 100))
@@ -715,7 +753,7 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertFalse(configuration.applyFetchedEstimate(.init(info: fetchedInfo, nextBaseFee: 100)))
         XCTAssertFalse(configuration.installTransactionFallback(feePerGas: 200))
-        XCTAssertEqual(configuration.info?.sliderValues, [85, 100, 120, 140])
+        XCTAssertEqual(curveValues(configuration.info), [50, 100, 100, 200])
         XCTAssertFalse(configuration.didUserSetFee)
     }
 
@@ -724,7 +762,7 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertTrue(configuration.installTransactionFallback(feePerGas: 100))
         XCTAssertFalse(configuration.applyFetchedEstimate(.init(info: nil, nextBaseFee: 90)))
-        XCTAssertEqual(configuration.info?.sliderValues, [85, 100, 120, 140])
+        XCTAssertEqual(curveValues(configuration.info), [50, 100, 100, 200])
         XCTAssertFalse(configuration.didUserSetFee)
     }
 
@@ -767,15 +805,15 @@ final class GasServiceTests: XCTestCase {
             )
         )
         XCTAssertEqual(
-            configuration.info?.sliderValues,
-            [85, 100, 120, 140]
+            curveValues(configuration.info),
+            [50, 100, 100, 200]
         )
         XCTAssertFalse(
             configuration.installTransactionFallback(feePerGas: 200)
         )
         XCTAssertEqual(
-            configuration.info?.sliderValues,
-            [85, 100, 120, 140]
+            curveValues(configuration.info),
+            [50, 100, 100, 200]
         )
     }
 
@@ -804,7 +842,7 @@ final class GasServiceTests: XCTestCase {
             inRelationTo: relativeInfo
         )
         configuration.recordSelectedSliderPosition(0, for: transaction)
-        XCTAssertEqual(configuration.semanticSpeed(for: transaction), .slow)
+        XCTAssertEqual(configuration.sliderPosition(for: transaction), 0)
         configuration.markGasSliderInteraction()
 
         XCTAssertFalse(
@@ -813,20 +851,16 @@ final class GasServiceTests: XCTestCase {
             )
         )
         XCTAssertEqual(
-            configuration.info?.sliderValues,
-            [85, 100, 120, 140]
+            curveValues(configuration.info),
+            [50, 100, 100, 200]
         )
 
         XCTAssertTrue(
             configuration.endGasSliderInteraction(didChangeFee: false)
         )
         XCTAssertEqual(
-            configuration.info?.sliderValues,
-            [85, 100, 120, 140]
-        )
-        XCTAssertEqual(
-            configuration.semanticSpeed(for: transaction),
-            .custom
+            curveValues(configuration.info),
+            [50, 100, 100, 200]
         )
         XCTAssertFalse(
             configuration.installTransactionFallback(feePerGas: 200)
@@ -858,62 +892,13 @@ final class GasServiceTests: XCTestCase {
         )
     }
 
-    func testNilFetchedCurveInvalidatesNamedSelectionAcrossRecovery() {
-        var configuration = GasSpeedConfiguration()
-        XCTAssertTrue(
-            configuration.applyFetchedEstimate(
-                .init(info: fetchedInfo, nextBaseFee: 100)
-            )
-        )
-        var transaction = Transaction(
-            from: "0x0",
-            to: "0x1",
-            value: nil,
-            data: "0x",
-            preparedFee: .eip1559(
-                maxPriorityFeePerGas: 200,
-                maxFeePerGas: 400
-            ),
-            feeSource: .automatic,
-            currentBaseFeePerGas: 100
-        )
-        transaction.setFeeForSpeed(
-            value: 200.0 / 3.0,
-            inRelationTo: fetchedInfo
-        )
-        configuration.recordSelectedSliderPosition(
-            200.0 / 3.0,
-            for: transaction
-        )
-        XCTAssertEqual(configuration.semanticSpeed(for: transaction), .fast)
-
-        XCTAssertTrue(
-            configuration.applyFetchedEstimate(
-                .init(info: nil, nextBaseFee: 110)
-            )
-        )
-        XCTAssertEqual(
-            configuration.semanticSpeed(for: transaction),
-            .custom
-        )
-        XCTAssertTrue(
-            configuration.applyFetchedEstimate(
-                .init(info: fetchedInfo, nextBaseFee: 120)
-            )
-        )
-        XCTAssertEqual(
-            configuration.semanticSpeed(for: transaction),
-            .custom
-        )
-    }
-
     func testManualGasCommitRecentersRelativeFallback() {
         var configuration = GasSpeedConfiguration()
 
         XCTAssertTrue(configuration.installTransactionFallback(feePerGas: 100))
         configuration.commitManualFee(.legacy(gasPrice: 140))
 
-        XCTAssertEqual(configuration.info?.sliderValues, [119, 140, 168, 196])
+        XCTAssertEqual(curveValues(configuration.info), [70, 140, 140, 280])
         XCTAssertTrue(configuration.applyFetchedEstimate(.init(info: fetchedInfo, nextBaseFee: 100)))
         XCTAssertEqual(configuration.info, fetchedInfo)
         XCTAssertTrue(configuration.didUserSetFee)
@@ -932,7 +917,7 @@ final class GasServiceTests: XCTestCase {
         )
 
         let info = try XCTUnwrap(configuration.info)
-        XCTAssertEqual(info.sliderValues, [34, 40, 48, 56])
+        XCTAssertEqual(curveValues(info), [20, 40, 40, 80])
         var transaction = Transaction(
             from: "0x0",
             to: "0x1",
@@ -943,7 +928,7 @@ final class GasServiceTests: XCTestCase {
             currentBaseFeePerGas: 100
         )
         transaction.setFeeForSpeed(
-            value: 100.0 / 3.0,
+            value: 100,
             inRelationTo: info
         )
         XCTAssertEqual(
@@ -990,7 +975,7 @@ final class GasServiceTests: XCTestCase {
         )
     }
 
-    func testManualGasCommitPreservesLiveTiers() {
+    func testManualGasCommitPreservesLiveCurve() {
         var configuration = GasSpeedConfiguration()
 
         XCTAssertTrue(configuration.applyFetchedEstimate(.init(info: fetchedInfo, nextBaseFee: 100)))
@@ -1025,7 +1010,7 @@ final class GasServiceTests: XCTestCase {
         XCTAssertTrue(configuration.didUserSetFee)
     }
 
-    func testUnrepresentableManualGasCommitPreservesLiveTiers() {
+    func testUnrepresentableManualGasCommitPreservesLiveCurve() {
         var configuration = GasSpeedConfiguration()
 
         XCTAssertTrue(configuration.applyFetchedEstimate(.init(info: fetchedInfo, nextBaseFee: 100)))
@@ -1050,23 +1035,21 @@ final class GasServiceTests: XCTestCase {
         XCTAssertFalse(configuration.installTransactionFallback(feePerGas: 0))
         let maximum = BigUInt(data: Data(repeating: 0xff, count: 32))
         XCTAssertFalse(
-            configuration.installTransactionFallback(feePerGas: maximum)
+            configuration.installTransactionFallback(
+                feePerGas: maximum + BigUInt(1)
+            )
         )
         XCTAssertNil(configuration.info)
     }
 
     func testGasSpeedConfigurationRepeatedStartsRetainLatestPendingCurve() {
         let firstInfo = GasService.Info(
-            standard: 20,
-            slow: 10,
-            fast: 30,
-            rapid: 40
+            recommendedPriorityFee: 20,
+            highPriorityFee: 40
         )
         let latestInfo = GasService.Info(
-            standard: 200,
-            slow: 100,
-            fast: 300,
-            rapid: 400
+            recommendedPriorityFee: 200,
+            highPriorityFee: 400
         )
         var configuration = GasSpeedConfiguration()
 
@@ -1110,8 +1093,8 @@ final class GasServiceTests: XCTestCase {
         )
         configuration.commitManualFee(.legacy(gasPrice: 140))
         XCTAssertEqual(
-            configuration.info?.sliderValues,
-            [119, 140, 168, 196]
+            curveValues(configuration.info),
+            [70, 140, 140, 280]
         )
         XCTAssertFalse(
             configuration.applyFetchedEstimate(
@@ -1119,8 +1102,8 @@ final class GasServiceTests: XCTestCase {
             )
         )
         XCTAssertEqual(
-            configuration.info?.sliderValues,
-            [119, 140, 168, 196]
+            curveValues(configuration.info),
+            [70, 140, 140, 280]
         )
         XCTAssertFalse(
             configuration.installTransactionFallback(feePerGas: 200)
@@ -1167,12 +1150,10 @@ final class GasServiceTests: XCTestCase {
         )
     }
 
-    func testAutomaticStandardTierKeepsSemanticOneThirdPosition() {
+    func testAutomaticRecommendationMapsToCenterPosition() {
         let info = GasService.Info(
-            standard: 1,
-            slow: 1,
-            fast: 2,
-            rapid: 3
+            recommendedPriorityFee: 1,
+            highPriorityFee: 1
         )
         var configuration = GasSpeedConfiguration()
         _ = configuration.applyFetchedEstimate(
@@ -1193,21 +1174,15 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertEqual(
             configuration.sliderPosition(for: transaction),
-            100.0 / 3.0,
+            100,
             accuracy: 0.000_001
-        )
-        XCTAssertEqual(
-            configuration.semanticSpeed(for: transaction),
-            .standard
         )
     }
 
-    func testSemanticSpeedUsesOnlyValidNamedSliderSelections() {
+    func testSelectedContinuousSliderPositionsArePreserved() {
         let info = GasService.Info(
-            standard: 200,
-            slow: 100,
-            fast: 300,
-            rapid: 400
+            recommendedPriorityFee: 200,
+            highPriorityFee: 400
         )
         var configuration = GasSpeedConfiguration()
         _ = configuration.applyFetchedEstimate(
@@ -1225,14 +1200,9 @@ final class GasServiceTests: XCTestCase {
             feeSource: .automatic,
             currentBaseFeePerGas: 100
         )
-        let fixtures: [(Double, GasSpeedConfiguration.SemanticSpeed)] = [
-            (0, .slow),
-            (100.0 / 3.0, .standard),
-            (200.0 / 3.0, .fast),
-            (100, .rapid),
-        ]
+        let positions = [0.0, 25, 50, 75, 100, 125, 150, 175, 200]
 
-        for (position, semanticSpeed) in fixtures {
+        for position in positions {
             transaction.setFeeForSpeed(
                 value: position,
                 inRelationTo: info
@@ -1242,31 +1212,21 @@ final class GasServiceTests: XCTestCase {
                 for: transaction
             )
             XCTAssertEqual(
-                configuration.semanticSpeed(for: transaction),
-                semanticSpeed
+                configuration.sliderPosition(for: transaction),
+                position,
+                accuracy: 0.000_001
             )
         }
-
-        transaction.setFeeForSpeed(value: 50, inRelationTo: info)
-        configuration.recordSelectedSliderPosition(50, for: transaction)
-        XCTAssertEqual(
-            configuration.semanticSpeed(for: transaction),
-            .custom
-        )
     }
 
-    func testInvalidatedSliderSelectionIsSemanticallyCustomAtNewTier() {
+    func testRefreshedCurveInvalidatesSelectionAndRederivesPosition() {
         let originalInfo = GasService.Info(
-            standard: 200,
-            slow: 100,
-            fast: 300,
-            rapid: 400
+            recommendedPriorityFee: 200,
+            highPriorityFee: 400
         )
         let refreshedInfo = GasService.Info(
-            standard: 250,
-            slow: 200,
-            fast: 300,
-            rapid: 400
+            recommendedPriorityFee: 300,
+            highPriorityFee: 400
         )
         var configuration = GasSpeedConfiguration()
         _ = configuration.applyFetchedEstimate(
@@ -1294,33 +1254,15 @@ final class GasServiceTests: XCTestCase {
         )
         XCTAssertEqual(
             configuration.sliderPosition(for: transaction),
-            100.0 / 3.0,
+            0,
             accuracy: 0.000_001
-        )
-        XCTAssertEqual(
-            configuration.semanticSpeed(for: transaction),
-            .custom
         )
     }
 
-    func testManualAndDappFeesAtNamedTiersAreSemanticallyCustom() {
-        XCTAssertEqual(
-            GasSpeedConfiguration().semanticSpeed(
-                for: Transaction(
-                    from: "0x0",
-                    to: "0x1",
-                    value: nil,
-                    data: "0x"
-                )
-            ),
-            .custom
-        )
-
+    func testManualAndDappRecommendedFeesMapToCenterPosition() {
         let info = GasService.Info(
-            standard: 200,
-            slow: 100,
-            fast: 300,
-            rapid: 400
+            recommendedPriorityFee: 200,
+            highPriorityFee: 400
         )
         var configuration = GasSpeedConfiguration()
         _ = configuration.applyFetchedEstimate(
@@ -1342,22 +1284,16 @@ final class GasServiceTests: XCTestCase {
             )
             XCTAssertEqual(
                 configuration.sliderPosition(for: transaction),
-                100.0 / 3.0,
+                100,
                 accuracy: 0.000_001
-            )
-            XCTAssertEqual(
-                configuration.semanticSpeed(for: transaction),
-                .custom
             )
         }
     }
 
-    func testMixedProvenanceAutomaticPriorityKeepsSemanticStandardPosition() {
+    func testMixedProvenanceAutomaticPriorityMapsToCenterPosition() {
         let info = GasService.Info(
-            standard: 1,
-            slow: 1,
-            fast: 2,
-            rapid: 3
+            recommendedPriorityFee: 1,
+            highPriorityFee: 1
         )
         var configuration = GasSpeedConfiguration()
         _ = configuration.applyFetchedEstimate(
@@ -1387,17 +1323,15 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(transaction.speedPriorityFeeSource, .automatic)
         XCTAssertEqual(
             configuration.sliderPosition(for: transaction),
-            100.0 / 3.0,
+            100,
             accuracy: 0.000_001
         )
     }
 
     func testMixedProvenanceSliderPriorityKeepsSelectedDuplicatePosition() {
         let info = GasService.Info(
-            standard: 1,
-            slow: 1,
-            fast: 2,
-            rapid: 3
+            recommendedPriorityFee: 1,
+            highPriorityFee: 1
         )
         var configuration = GasSpeedConfiguration()
         _ = configuration.applyFetchedEstimate(
@@ -1429,12 +1363,10 @@ final class GasServiceTests: XCTestCase {
         )
     }
 
-    func testSelectedSliderPositionPersistsAcrossDuplicateFeeTiers() {
+    func testSelectedSliderPositionPersistsAcrossIntegerWeiDuplicates() {
         let info = GasService.Info(
-            standard: 1,
-            slow: 1,
-            fast: 2,
-            rapid: 3
+            recommendedPriorityFee: 1,
+            highPriorityFee: 1
         )
         var configuration = GasSpeedConfiguration()
         _ = configuration.applyFetchedEstimate(
@@ -1457,7 +1389,7 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertEqual(
             transaction.currentFeeInRelationTo(info: info),
-            0
+            100
         )
         XCTAssertEqual(
             configuration.sliderPosition(for: transaction),
@@ -1474,10 +1406,8 @@ final class GasServiceTests: XCTestCase {
 
     func testAuthoritativePreparedFeeInvalidatesStaleSliderSelection() {
         let info = GasService.Info(
-            standard: 200,
-            slow: 150,
-            fast: 250,
-            rapid: 300
+            recommendedPriorityFee: 200,
+            highPriorityFee: 300
         )
         var configuration = GasSpeedConfiguration()
         _ = configuration.applyFetchedEstimate(
@@ -1516,17 +1446,15 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertEqual(
             configuration.sliderPosition(for: authoritative),
-            100.0 / 3.0,
+            100,
             accuracy: 0.000_001
         )
     }
 
-    func testManualCommitClearsDuplicateTierSliderSelection() {
+    func testManualCommitClearsDuplicateWeiSliderSelection() {
         let info = GasService.Info(
-            standard: 1,
-            slow: 1,
-            fast: 2,
-            rapid: 3
+            recommendedPriorityFee: 1,
+            highPriorityFee: 1
         )
         var configuration = GasSpeedConfiguration()
         _ = configuration.applyFetchedEstimate(
@@ -1550,48 +1478,45 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertEqual(
             configuration.sliderPosition(for: transaction),
-            0
+            100
         )
     }
 
-    func testStandardFallbackTickIsOneThirdAlongSlider() throws {
+    func testFallbackRecommendationIsAtSliderCenter() throws {
         let info = try XCTUnwrap(GasService.Info.relative(to: 100))
         var transaction = Transaction(from: "0x0", to: "0x1", value: nil, data: "0x")
         transaction.gasPrice = String.hex(100)
 
         XCTAssertEqual(
             transaction.currentFeeInRelationTo(info: info),
-            100.0 / 3.0,
+            100,
             accuracy: 0.000_001
         )
     }
 
-    func testGasSliderHandlesClampedDuplicateSlowAndStandardTiers() throws {
-        let info = try XCTUnwrap(GasService.Info.relative(
-            to: 80,
-            minimumPriorityFeePerGas: 100
-        ))
+    func testFallbackCurveRemainsEditableAcrossBothHalves() throws {
+        let info = try XCTUnwrap(GasService.Info.relative(to: 100))
         var transaction = Transaction(from: "0x0", to: "0x1", value: nil, data: "0x")
         transaction.gasPrice = String.hex(100)
+        let fixtures: [(Double, BigUInt)] = [
+            (0, 50),
+            (50, 75),
+            (100, 100),
+            (150, 150),
+            (200, 200),
+        ]
 
-        XCTAssertEqual(transaction.currentFeeInRelationTo(info: info), 0)
-
-        transaction.setFeeForSpeed(value: 100.0 / 6.0, inRelationTo: info)
-        XCTAssertEqual(transaction.gasPriceValue, BigUInt(100))
-
-        transaction.setFeeForSpeed(value: 50, inRelationTo: info)
-        let increasedPrice = try XCTUnwrap(transaction.gasPriceValue)
-        XCTAssertGreaterThan(increasedPrice, BigUInt(100))
-        XCTAssertLessThan(increasedPrice, BigUInt(120))
+        for (position, expectedFee) in fixtures {
+            transaction.setFeeForSpeed(value: position, inRelationTo: info)
+            XCTAssertEqual(transaction.gasPriceValue, expectedFee)
+        }
     }
 
-    func testGasSliderInterpolationHandlesUIntBoundaryTiers() throws {
+    func testGasSliderInterpolationSaturatesAtUInt256Maximum() throws {
         let maximum = BigUInt(data: Data(repeating: 0xff, count: 32))
         let info = GasService.Info(
-            standard: maximum - BigUInt(2),
-            slow: 1,
-            fast: maximum - BigUInt(1),
-            rapid: maximum
+            recommendedPriorityFee: maximum - BigUInt(2),
+            highPriorityFee: maximum
         )
         var transaction = Transaction(
             from: "0x0",
@@ -1602,25 +1527,35 @@ final class GasServiceTests: XCTestCase {
         )
 
         transaction.setFeeForSpeed(value: 0, inRelationTo: info)
-        XCTAssertEqual(transaction.gasPriceValue, BigUInt(1))
+        XCTAssertEqual(
+            transaction.gasPriceValue,
+            (maximum - BigUInt(2)).quotientAndRemainder(
+                dividingBy: 2
+            ).quotient
+        )
 
-        transaction.setFeeForSpeed(value: 100.0 / 3.0, inRelationTo: info)
+        transaction.setFeeForSpeed(value: 100, inRelationTo: info)
         XCTAssertEqual(transaction.gasPriceValue, maximum - BigUInt(2))
 
         transaction.setFeeForSpeed(
-            value: (100.0 / 3.0).nextDown,
+            value: Double(100).nextDown,
             inRelationTo: info
         )
-        let valueBelowStandard = try XCTUnwrap(transaction.gasPriceValue)
-        XCTAssertGreaterThanOrEqual(valueBelowStandard, 1)
-        XCTAssertLessThanOrEqual(valueBelowStandard, maximum - BigUInt(2))
+        let valueBelowRecommendation = try XCTUnwrap(transaction.gasPriceValue)
+        XCTAssertLessThanOrEqual(
+            valueBelowRecommendation,
+            maximum - BigUInt(2)
+        )
 
-        transaction.setFeeForSpeed(value: 100, inRelationTo: info)
+        transaction.setFeeForSpeed(value: 200, inRelationTo: info)
         XCTAssertEqual(transaction.gasPriceValue, maximum)
     }
 
     func testGasSliderInterpolationPreservesNormalFlooringAndRejectsInvalidValues() {
-        let info = GasService.Info(standard: 200, slow: 100, fast: 300, rapid: 400)
+        let info = GasService.Info(
+            recommendedPriorityFee: 200,
+            highPriorityFee: 400
+        )
         var transaction = Transaction(
             from: "0x0",
             to: "0x1",
@@ -1629,11 +1564,11 @@ final class GasServiceTests: XCTestCase {
             data: "0x"
         )
 
-        transaction.setFeeForSpeed(value: 100.0 / 6.0, inRelationTo: info)
+        transaction.setFeeForSpeed(value: 50, inRelationTo: info)
         XCTAssertEqual(transaction.gasPriceValue, BigUInt(150))
 
         let validGasPrice = transaction.gasPrice
-        for invalidValue in [Double.nan, Double.infinity, -Double.infinity, -1, 101] {
+        for invalidValue in [Double.nan, Double.infinity, -Double.infinity, -1, 201] {
             transaction.setFeeForSpeed(
                 value: invalidValue,
                 inRelationTo: info
@@ -1642,12 +1577,98 @@ final class GasServiceTests: XCTestCase {
         }
     }
 
+    func testSliderPositionClampsFeesOutsideCurve() {
+        let info = GasService.Info(
+            recommendedPriorityFee: 100,
+            highPriorityFee: 200
+        )
+        var transaction = Transaction(
+            from: "0x0",
+            to: "0x1",
+            gasPrice: String.hex(49),
+            value: nil,
+            data: "0x"
+        )
+
+        XCTAssertEqual(transaction.currentFeeInRelationTo(info: info), 0)
+
+        transaction.gasPrice = String.hex(401)
+        XCTAssertEqual(transaction.currentFeeInRelationTo(info: info), 200)
+    }
+
+    func testSliderPositionRoundTripsNondivisibleFeesInBothHalves() {
+        let info = GasService.Info(
+            recommendedPriorityFee: 11,
+            highPriorityFee: 13
+        )
+        var transaction = Transaction(
+            from: "0x0",
+            to: "0x1",
+            gasPrice: String.hex(6),
+            value: nil,
+            data: "0x"
+        )
+
+        let lowerPosition = transaction.currentFeeInRelationTo(info: info)
+        XCTAssertGreaterThan(lowerPosition, 0)
+        XCTAssertLessThan(lowerPosition, 100)
+        XCTAssertEqual(
+            Transaction.priorityFee(
+                atSpeed: lowerPosition,
+                inRelationTo: info
+            ),
+            6
+        )
+
+        transaction.gasPrice = String.hex(12)
+        let upperPosition = transaction.currentFeeInRelationTo(info: info)
+        XCTAssertGreaterThan(upperPosition, 100)
+        XCTAssertLessThan(upperPosition, 200)
+        XCTAssertEqual(
+            Transaction.priorityFee(
+                atSpeed: upperPosition,
+                inRelationTo: info
+            ),
+            12
+        )
+    }
+
+    func testSaturatedSliderEndpointLeavesEIP1559FeeAndPositionUnchanged() {
+        let maximum = Transaction.maximumUInt256
+        let info = GasService.Info(
+            recommendedPriorityFee: maximum - BigUInt(2),
+            highPriorityFee: maximum
+        )
+        var configuration = GasSpeedConfiguration()
+        _ = configuration.applyFetchedEstimate(
+            .init(info: info, nextBaseFee: 1)
+        )
+        var transaction = Transaction(
+            from: "0x0",
+            to: "0x1",
+            value: nil,
+            data: "0x",
+            preparedFee: .eip1559(
+                maxPriorityFeePerGas: 1,
+                maxFeePerGas: 3
+            ),
+            feeSource: .automatic,
+            currentBaseFeePerGas: 1
+        )
+        let originalFee = transaction.preparedFee
+
+        transaction.setFeeForSpeed(value: 200, inRelationTo: info)
+        configuration.recordSelectedSliderPosition(200, for: transaction)
+
+        XCTAssertEqual(transaction.preparedFee, originalFee)
+        XCTAssertEqual(transaction.feeSource, .automatic)
+        XCTAssertEqual(configuration.sliderPosition(for: transaction), 0)
+    }
+
     func testType2SpeedSliderMapsPriorityAndDerivesFreshFeeCap() {
         let info = GasService.Info(
-            standard: 20,
-            slow: 10,
-            fast: 40,
-            rapid: 80
+            recommendedPriorityFee: 20,
+            highPriorityFee: 80
         )
         var transaction = Transaction(
             from: "0x0",
@@ -1670,7 +1691,7 @@ final class GasServiceTests: XCTestCase {
         transaction.setFeeForSpeed(value: 50, inRelationTo: info)
         XCTAssertEqual(
             transaction.preparedFee,
-            .eip1559(maxPriorityFeePerGas: 30, maxFeePerGas: 230)
+            .eip1559(maxPriorityFeePerGas: 15, maxFeePerGas: 215)
         )
         XCTAssertEqual(
             transaction.currentFeeInRelationTo(info: info),
@@ -1680,7 +1701,27 @@ final class GasServiceTests: XCTestCase {
         transaction.setFeeForSpeed(value: 100, inRelationTo: info)
         XCTAssertEqual(
             transaction.preparedFee,
-            .eip1559(maxPriorityFeePerGas: 80, maxFeePerGas: 280)
+            .eip1559(maxPriorityFeePerGas: 20, maxFeePerGas: 220)
+        )
+        transaction.setFeeForSpeed(value: 150, inRelationTo: info)
+        XCTAssertEqual(
+            transaction.preparedFee,
+            .eip1559(maxPriorityFeePerGas: 90, maxFeePerGas: 290)
+        )
+        XCTAssertEqual(
+            transaction.currentFeeInRelationTo(info: info),
+            150,
+            accuracy: 0.000_001
+        )
+        transaction.setFeeForSpeed(value: 200, inRelationTo: info)
+        XCTAssertEqual(
+            transaction.preparedFee,
+            .eip1559(maxPriorityFeePerGas: 160, maxFeePerGas: 360)
+        )
+        XCTAssertEqual(
+            transaction.currentFeeInRelationTo(info: info),
+            200,
+            accuracy: 0.000_001
         )
         XCTAssertEqual(transaction.feeSource, .slider)
     }
@@ -3890,7 +3931,7 @@ final class GasServiceTests: XCTestCase {
         )
     }
 
-    func testExplicitLegacyWithoutGasPriceDerivesHeadroomedBasePlusStandardPriority() {
+    func testExplicitLegacyWithoutGasPriceDerivesHeadroomedBasePlusRecommendedPriority() {
         let rpc = makeEIP1559RPCStub(chainID: 9_002)
         let transaction = Transaction(
             from: "0x0000000000000000000000000000000000000001",
@@ -4238,9 +4279,7 @@ final class GasServiceTests: XCTestCase {
                         current: currentBase.toHexString(withPrefix: true),
                         next: nextBase.toHexString(withPrefix: true)
                     ),
-                    reward: fullRewards(
-                        ["0x0", "0x0", "0x0", "0x0"]
-                    )
+                    reward: nil
                 )
             ),
             latestBlockResult: .success(
@@ -4313,7 +4352,7 @@ final class GasServiceTests: XCTestCase {
                         next: "0x132"
                     ),
                     reward: fullRewards(
-                        ["0x0", "0x0", "0x0", "0x0"]
+                        ["0x0", "0x0"]
                     )
                 )
             ),
@@ -4505,7 +4544,7 @@ final class GasServiceTests: XCTestCase {
                         next: "0x132"
                     ),
                     reward: fullRewards(
-                        ["0x0", "0x0", "0x0", "0x0"]
+                        ["0x0", "0x0"]
                     )
                 )
             ),
@@ -5014,7 +5053,7 @@ final class GasServiceTests: XCTestCase {
                         next: "0x132"
                     ),
                     reward: fullRewards(
-                        ["0x0", "0x0", "0x0", "0x0"]
+                        ["0x0", "0x0"]
                     )
                 )
             ),
@@ -5078,7 +5117,7 @@ final class GasServiceTests: XCTestCase {
                             current: "0x64",
                             next: "0x6e"
                         ),
-                        reward: fullRewards(["0x1", "0x2", "0x3", "0x4"])
+                        reward: fullRewards(["0x2", "0x4"])
                     )
                 ),
                 latestBlockResult: .success(
@@ -5189,8 +5228,8 @@ final class GasServiceTests: XCTestCase {
                 EthereumFeeHistory(
                     baseFeePerGas: ["0x63", "0x64", "0x6e"],
                     reward: [
-                        ["0x1", "0x2", "0x3", "0x4"],
-                        ["0x2", "0x3", "0x4", "0x5"],
+                        ["0x2", "0x4"],
+                        ["0x3", "0x5"],
                     ]
                 )
             ),
@@ -5821,10 +5860,8 @@ final class GasServiceTests: XCTestCase {
     func testEstimateSuggestedFeeRespectsRequestedFeeModel() {
         let dynamic = GasService.Estimate(
             info: GasService.Info(
-                standard: 2,
-                slow: 1,
-                fast: 3,
-                rapid: 4
+                recommendedPriorityFee: 2,
+                highPriorityFee: 4
             ),
             nextBaseFee: 110,
             currentBaseFee: 100,
@@ -5881,7 +5918,7 @@ final class GasServiceTests: XCTestCase {
                         current: "0x64",
                         next: "0x6e"
                     ),
-                    reward: fullRewards(["0x1", "0x2", "0x3", "0x4"])
+                    reward: fullRewards(["0x2", "0x4"])
                 )
             ),
             latestBlockResult: .success(
@@ -5921,7 +5958,7 @@ final class GasServiceTests: XCTestCase {
                         current: "0x64",
                         next: "0x6e"
                     ),
-                    reward: fullRewards(["0x1", "0x2", "0x3", "0x4"])
+                    reward: fullRewards(["0x2", "0x4"])
                 )
             ),
             latestBlockResult: .success(
@@ -5989,7 +6026,7 @@ final class GasServiceTests: XCTestCase {
                         current: "0x64",
                         next: "0x6e"
                     ),
-                    reward: fullRewards(["0x1", "0x2", "0x3", "0x4"])
+                    reward: fullRewards(["0x2", "0x4"])
                 )
             ),
             latestBlockResult: .success(
@@ -6051,7 +6088,7 @@ final class GasServiceTests: XCTestCase {
                         current: "0x64",
                         next: "0x6e"
                     ),
-                    reward: fullRewards(["0x1", "0x2", "0x3", "0x4"])
+                    reward: fullRewards(["0x2", "0x4"])
                 )
             ),
             latestBlockResult: .success(
@@ -6071,7 +6108,7 @@ final class GasServiceTests: XCTestCase {
 
         XCTAssertEqual(estimate.support, .eip1559)
         XCTAssertNil(estimate.endpointChainID)
-        XCTAssertEqual(estimate.info?.standard, 2)
+        XCTAssertEqual(estimate.info?.recommendedPriorityFee, 2)
         XCTAssertEqual(rpc.chainIDCallCount, 1)
         XCTAssertEqual(rpc.latestBlockCallCount, 1)
         XCTAssertEqual(rpc.feeHistoryCallCount, 1)
@@ -6246,7 +6283,7 @@ final class GasServiceTests: XCTestCase {
                             next: "0x6e"
                         ),
                         reward: fullRewards(
-                            ["0x1", "0x2", "0x3", "0x4"]
+                            ["0x2", "0x4"]
                         )
                     )
                 )
@@ -6564,7 +6601,7 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(estimate.support, .eip1559)
         XCTAssertEqual(estimate.currentBaseFee, 0)
         XCTAssertEqual(estimate.nextBaseFee, 0)
-        XCTAssertEqual(estimate.info?.standard, 1)
+        XCTAssertEqual(estimate.info?.recommendedPriorityFee, 1)
         XCTAssertEqual(estimate.endpointChainID, 34)
     }
 
@@ -6576,7 +6613,7 @@ final class GasServiceTests: XCTestCase {
                 current: "0x64",
                 next: "0x6e"
             ),
-            reward: fullRewards(["0x1", "0x2", "0x3", "0x4"])
+            reward: fullRewards(["0x2", "0x4"])
         )
         let contradictoryRPC = EthereumCoreRPCStub(
             chainIDResult: .success("0x2c"),
@@ -6630,7 +6667,7 @@ final class GasServiceTests: XCTestCase {
                 current: "0x64",
                 next: "0x6e"
             ),
-            reward: fullRewards(["0x1", "0x2", "0x3", "0x4"])
+            reward: fullRewards(["0x2", "0x4"])
         )
         let fixtures: [(name: String, number: String?)] = [
             ("missing", nil),
@@ -6688,7 +6725,7 @@ final class GasServiceTests: XCTestCase {
         XCTAssertEqual(anchored.support, .eip1559)
         XCTAssertEqual(anchored.currentBaseFee, 100)
         XCTAssertEqual(anchored.nextBaseFee, 110)
-        XCTAssertEqual(anchored.info?.standard, 2)
+        XCTAssertEqual(anchored.info?.recommendedPriorityFee, 2)
     }
 
     func testMalformedRewardDecodingRetainsValidNextBaseFee() throws {
@@ -6714,7 +6751,7 @@ final class GasServiceTests: XCTestCase {
                 result = [
                     "baseFeePerGas":
                         Array(repeating: "0x1", count: 10) + ["0x64"],
-                    "reward": [["0x1", 2, "0x3", "0x4"]]
+                    "reward": [["0x1", 2]]
                 ]
             case "eth_getBlockByNumber":
                 result = ["number": "0x1", "baseFeePerGas": "0x1"]
@@ -6734,7 +6771,7 @@ final class GasServiceTests: XCTestCase {
         let estimate = fetchEstimate(using: GasService(rpc: EthereumRPC(urlSession: session)))
 
         XCTAssertEqual(requestCount.value, 3)
-        XCTAssertEqual(estimate.info?.sliderValues, [1, 1, 2, 3])
+        XCTAssertEqual(curveValues(estimate.info), [1, 1, 1, 2])
         XCTAssertEqual(estimate.nextBaseFee, 100)
     }
 
@@ -7646,7 +7683,7 @@ final class GasServiceTests: XCTestCase {
                         next: "0x6e"
                     ),
                     reward: fullRewards(
-                        ["0x1", "0x2", "0x3", "0x4"]
+                        ["0x2", "0x4"]
                     )
                 )
             ),
@@ -7676,9 +7713,7 @@ final class GasServiceTests: XCTestCase {
                         current: currentBaseFee,
                         next: nextBaseFee
                     ),
-                    reward: fullRewards(
-                        ["0x0", "0x0", "0x0", "0x0"]
-                    )
+                    reward: nil
                 )
             ),
             latestBlockResult: .success(
