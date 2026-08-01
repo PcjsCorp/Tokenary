@@ -10,6 +10,7 @@ struct Strings {
     static let signTypedData = loc("Sign Typed Data")
     static let cancel = loc("Cancel")
     static let ok = loc("OK")
+    static let apply = loc("Apply")
     static let somethingWentWrong = loc("Something went wrong")
     static let failedToSend = loc("Failed to send")
     static let failedToSign = loc("Failed to sign")

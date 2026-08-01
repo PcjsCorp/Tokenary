@@ -1,6 +1,11 @@
 // ∅ 2026 lil org
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 
 struct EditTransactionView: View {
 
@@ -211,20 +216,41 @@ struct EditTransactionView: View {
                 .padding()
             }
 
-            HStack {
-                Button(Strings.cancel, action: cancel)
-                    .keyboardShortcut(.cancelAction)
-                    .buttonStyle(.bordered)
-                Button(Strings.ok, action: commit)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!canCommit)
-                    .buttonStyle(.borderedProminent)
-            }
-            .frame(minHeight: 44)
-            .padding(.horizontal)
-            .padding(.bottom, 8)
+            actionButtons
+                .frame(minHeight: 44)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
         }
         .frame(minWidth: feeMode == .eip1559 ? 300 : nil)
+    }
+
+    private var actionButtons: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                cancelButton
+                applyButton
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            VStack(spacing: 8) {
+                cancelButton
+                applyButton
+            }
+        }
+    }
+
+    private var cancelButton: some View {
+        Button(Strings.cancel, action: cancel)
+            .keyboardShortcut(.cancelAction)
+            .buttonStyle(.bordered)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var applyButton: some View {
+        Button(Strings.apply, action: commit)
+            .keyboardShortcut(.defaultAction)
+            .disabled(!canCommit)
+            .buttonStyle(.borderedProminent)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var legacyFeeEditor: some View {
@@ -239,16 +265,16 @@ struct EditTransactionView: View {
                     )
                     .buttonStyle(.plain)
                     .foregroundColor(.secondary)
-                    .disableSecondaryActionFocusEffect()
+                    .disableMacOSFocusEffect()
                 }
             }
-            TextField(
-                Strings.customGasPrice,
-                text: manuallyEditedLegacyFeeBinding
+            TransactionTextField(
+                placeholder: Strings.customGasPrice,
+                text: manuallyEditedLegacyFeeBinding,
+                keyboard: .decimal,
+                suffix: nil,
+                identifier: "transactionGasPriceField"
             )
-                .textFieldStyle(.roundedBorder)
-                .decimalInputKeyboard()
-                .accessibilityIdentifier("transactionGasPriceField")
         }
     }
 
@@ -265,24 +291,22 @@ struct EditTransactionView: View {
                         )
                         .buttonStyle(.plain)
                         .foregroundColor(.secondary)
-                        .disableSecondaryActionFocusEffect()
+                        .disableMacOSFocusEffect()
                         .accessibilityIdentifier(
                             "useSuggestedTransactionFees"
                         )
                     }
                 }
-                TextField(
-                    Strings.customMaxPriorityFee,
+                TransactionTextField(
+                    placeholder: Strings.customMaxPriorityFee,
                     text: manuallyEditedFeeBinding(
                         $maxPriorityFee,
                         field: .priority
-                    )
+                    ),
+                    keyboard: .decimal,
+                    suffix: Strings.gwei,
+                    identifier: "transactionMaxPriorityFeeField"
                 )
-                    .textFieldStyle(.roundedBorder)
-                    .decimalInputKeyboard()
-                    .accessibilityIdentifier(
-                        "transactionMaxPriorityFeeField"
-                    )
             }
             feeField(
                 title: Strings.maxFee,
@@ -305,10 +329,13 @@ struct EditTransactionView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .fontWeight(.medium)
-            TextField(placeholder, text: text)
-                .textFieldStyle(.roundedBorder)
-                .decimalInputKeyboard()
-                .accessibilityIdentifier(identifier)
+            TransactionTextField(
+                placeholder: placeholder,
+                text: text,
+                keyboard: .decimal,
+                suffix: Strings.gwei,
+                identifier: identifier
+            )
         }
     }
 
@@ -326,10 +353,13 @@ struct EditTransactionView: View {
                     .foregroundColor(.secondary)
                 }
             }
-            TextField(Strings.customNonce, text: $nonce)
-                .textFieldStyle(.roundedBorder)
-                .numberInputKeyboard()
-                .accessibilityIdentifier("transactionNonceField")
+            TransactionTextField(
+                placeholder: Strings.customNonce,
+                text: $nonce,
+                keyboard: .number,
+                suffix: nil,
+                identifier: "transactionNonceField"
+            )
         }
     }
 
@@ -463,9 +493,190 @@ struct EditTransactionView: View {
     }
 }
 
+private enum TransactionTextFieldKeyboard {
+    case decimal
+    case number
+}
+
+private struct TransactionTextField: View {
+
+    let placeholder: String
+    @Binding var text: String
+    let keyboard: TransactionTextFieldKeyboard
+    let suffix: String?
+    let identifier: String
+    @State private var focusRequest = 0
+    @FocusState private var isFocused: Bool
+
+    private var accessibilityLabel: String {
+        suffix.map { "\(placeholder), \($0)" } ?? placeholder
+    }
+
+    private var outlineColor: Color {
+#if os(macOS)
+        Color(nsColor: .separatorColor)
+#elseif canImport(UIKit)
+        Color(uiColor: .separator)
+#else
+        Color.secondary.opacity(0.15)
+#endif
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            input
+                .textFieldStyle(.plain)
+                .frame(minWidth: 0)
+                .accessibilityLabel(
+                    Text(verbatim: accessibilityLabel)
+                )
+                .accessibilityIdentifier(identifier)
+            if let suffix {
+                Text(suffix)
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .fixedSize()
+                    .layoutPriority(1)
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: requestFocus)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, 7)
+        .transactionTextFieldVerticalPadding()
+        .background {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color.clear)
+                .contentShape(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                )
+                .onTapGesture(perform: requestFocus)
+                .accessibilityHidden(true)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .strokeBorder(outlineColor, lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
+    private var input: some View {
+#if os(macOS)
+        MacTransactionTextField(
+            placeholder: placeholder,
+            text: $text,
+            focusRequest: focusRequest
+        )
+#else
+        TextField(placeholder, text: $text)
+            .transactionInputKeyboard(keyboard)
+            .focused($isFocused)
+#endif
+    }
+
+    private func requestFocus() {
+#if os(macOS)
+        focusRequest &+= 1
+#else
+        isFocused = true
+#endif
+    }
+}
+
+#if os(macOS)
+private struct MacTransactionTextField: NSViewRepresentable {
+
+    let placeholder: String
+    @Binding var text: String
+    let focusRequest: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, focusRequest: focusRequest)
+    }
+
+    func makeNSView(context: Context) -> NonAutoSelectingTextField {
+        let textField = NonAutoSelectingTextField()
+        textField.stringValue = text
+        textField.placeholderString = placeholder
+        textField.isBezeled = false
+        textField.isBordered = false
+        textField.drawsBackground = false
+        textField.focusRingType = .none
+        textField.usesSingleLineMode = true
+        textField.lineBreakMode = .byClipping
+        textField.delegate = context.coordinator
+        return textField
+    }
+
+    func updateNSView(
+        _ textField: NonAutoSelectingTextField,
+        context: Context
+    ) {
+        context.coordinator.text = $text
+        textField.placeholderString = placeholder
+        if textField.stringValue != text {
+            textField.stringValue = text
+        }
+        context.coordinator.handleFocusRequest(
+            focusRequest,
+            textField: textField
+        )
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+
+        var text: Binding<String>
+        private var lastFocusRequest: Int
+
+        init(text: Binding<String>, focusRequest: Int) {
+            self.text = text
+            self.lastFocusRequest = focusRequest
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField else {
+                return
+            }
+            text.wrappedValue = textField.stringValue
+        }
+
+        func handleFocusRequest(
+            _ focusRequest: Int,
+            textField: NonAutoSelectingTextField
+        ) {
+            guard focusRequest != lastFocusRequest else { return }
+            lastFocusRequest = focusRequest
+            textField.focusWithoutSelecting()
+        }
+    }
+}
+
+private final class NonAutoSelectingTextField: NSTextField {
+
+    override func selectText(_ sender: Any?) {
+        super.selectText(sender)
+        moveInsertionPointToEnd()
+    }
+
+    func focusWithoutSelecting() {
+        window?.makeFirstResponder(self)
+        moveInsertionPointToEnd()
+    }
+
+    private func moveInsertionPointToEnd() {
+        guard let editor = currentEditor() else { return }
+        editor.selectedRange = NSRange(
+            location: editor.string.utf16.count,
+            length: 0
+        )
+    }
+}
+#endif
+
 private extension View {
 
-    func disableSecondaryActionFocusEffect() -> some View {
+    func disableMacOSFocusEffect() -> some View {
 #if os(macOS)
         return focusEffectDisabled()
 #else
@@ -473,19 +684,26 @@ private extension View {
 #endif
     }
 
-    func decimalInputKeyboard() -> some View {
+    func transactionInputKeyboard(
+        _ keyboard: TransactionTextFieldKeyboard
+    ) -> some View {
 #if canImport(UIKit)
-        return keyboardType(.decimalPad)
+        switch keyboard {
+        case .decimal:
+            return keyboardType(.decimalPad)
+        case .number:
+            return keyboardType(.numberPad)
+        }
 #else
         return self
 #endif
     }
 
-    func numberInputKeyboard() -> some View {
-#if canImport(UIKit)
-        return keyboardType(.numberPad)
+    func transactionTextFieldVerticalPadding() -> some View {
+#if os(macOS)
+        return padding(.vertical, 3)
 #else
-        return self
+        return padding(.vertical, 7)
 #endif
     }
 
