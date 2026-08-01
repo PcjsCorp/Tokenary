@@ -11,7 +11,7 @@ if [ ! -d "$provider_dir" ]; then
 fi
 
 . "$script_dir/inpage_provider_toolchain.sh"
-inpage_provider_prepare_tool_path
+inpage_provider_prepare_tool_path "$repo_dir"
 require_inpage_provider_toolchain
 
 cd "$provider_dir"
@@ -25,7 +25,7 @@ elif ! ./node_modules/.bin/esbuild --version >/dev/null 2>&1; then
 fi
 
 if [ "$needs_npm_ci" -eq 1 ]; then
-    npm ci --include=dev --include=optional --no-audit --prefer-offline
+    inpage_provider_run_npm ci --include=dev --include=optional --no-audit --prefer-offline
 fi
 
-npm run build
+inpage_provider_run_npm run build

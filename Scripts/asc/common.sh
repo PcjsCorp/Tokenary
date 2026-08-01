@@ -144,6 +144,22 @@ load_alchemy_release_pins() {
   ALCHEMY_JWT_EXPECTED_WORKER_VERSION="$tracked_version"
 }
 
+run_alchemy_release_node() {
+  if declare -F inpage_provider_run_node >/dev/null; then
+    inpage_provider_run_node "$@"
+  else
+    command node "$@"
+  fi
+}
+
+run_alchemy_release_npm() {
+  if declare -F inpage_provider_run_npm >/dev/null; then
+    inpage_provider_run_npm "$@"
+  else
+    command npm "$@"
+  fi
+}
+
 require_alchemy_release_toolchain() {
   local expected_node_version
   local expected_npm_version
@@ -151,8 +167,6 @@ require_alchemy_release_toolchain() {
   local actual_npm_version
 
   require_cmd jq
-  require_cmd node
-  require_cmd npm
 
   [[ -f "$ALCHEMY_JWT_WORKER_DIR/.nvmrc" ]] \
     || die "missing Alchemy Worker Node version pin"
@@ -160,7 +174,8 @@ require_alchemy_release_toolchain() {
     || die "missing Alchemy Worker package manifest"
 
   expected_node_version="$(tr -d '[:space:]' <"$ALCHEMY_JWT_WORKER_DIR/.nvmrc")"
-  actual_node_version="$(node --version)"
+  actual_node_version="$(run_alchemy_release_node --version 2>/dev/null)" \
+    || die "missing required command: node"
   actual_node_version="${actual_node_version#v}"
   [[ -n "$expected_node_version" && "$actual_node_version" == "$expected_node_version" ]] \
     || die "Alchemy release verification requires Node $expected_node_version; found $actual_node_version"
@@ -171,7 +186,8 @@ require_alchemy_release_toolchain() {
     | sub("^npm@"; "")
   ' "$ALCHEMY_JWT_WORKER_DIR/package.json" 2>/dev/null)" \
     || die "the Alchemy Worker package manifest must pin npm"
-  actual_npm_version="$(npm --version)"
+  actual_npm_version="$(run_alchemy_release_npm --version 2>/dev/null)" \
+    || die "missing required command: npm"
   [[ "$actual_npm_version" == "$expected_npm_version" ]] \
     || die "Alchemy release verification requires npm $expected_npm_version; found $actual_npm_version"
 
@@ -254,7 +270,7 @@ run_alchemy_worker_release_verification() {
       CLOUDFLARE_API_USER_SERVICE_KEY
     CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN_VALUE" \
       ALCHEMY_JWT_REQUEST_PROOF_KEY="$ALCHEMY_JWT_REQUEST_PROOF_KEY_VALUE" \
-      npm run verify:release -- \
+      run_alchemy_release_npm run verify:release -- \
         --expected-kid "$ALCHEMY_JWT_EXPECTED_KID" \
         --expected-version "$ALCHEMY_JWT_EXPECTED_WORKER_VERSION"
   ) >&2

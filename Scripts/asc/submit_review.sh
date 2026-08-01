@@ -41,6 +41,8 @@ run_with_alchemy_release_proof_key \
   "$REPO_ROOT/Scripts/assert_bundled_alchemy_jwt_request_proof_key.sh" \
   "$platform" \
   "$artifact_path"
+. "$REPO_ROOT/Scripts/inpage_provider_toolchain.sh"
+inpage_provider_prepare_tool_path "$REPO_ROOT"
 run_alchemy_worker_release_verification
 
 version_id="$(Scripts/asc/ensure_version.sh "$platform" "$version")"

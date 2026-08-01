@@ -17,7 +17,7 @@ require_cmd asc
 require_cmd jq
 require_cmd xcodebuild
 require_cmd plutil
-inpage_provider_prepare_tool_path
+inpage_provider_prepare_tool_path "$REPO_ROOT"
 require_inpage_provider_toolchain
 
 validate_alchemy_release_inputs

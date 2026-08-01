@@ -161,16 +161,116 @@ done
 unset bootstrap_private_name
 
 preferred_tool_directory="$test_root/preferred tools"
+preferred_tool_repository="$test_root/preferred tool repository"
 mkdir -p "$preferred_tool_directory"
-printf '%s\n' '#!/bin/sh' 'exit 0' >"$preferred_tool_directory/node"
-chmod 700 "$preferred_tool_directory/node"
+mkdir -p "$preferred_tool_repository/Workers/alchemy-jwt"
+printf '%s\n' "24.18.0" \
+  >"$preferred_tool_repository/Workers/alchemy-jwt/.nvmrc"
+printf '%s\n' \
+  '#!/bin/sh' \
+  'if [ "${1:-}" = "--version" ]; then' \
+  '  printf "%s\n" v24.18.0' \
+  '  exit 0' \
+  'fi' \
+  'exit 64' \
+  >"$preferred_tool_directory/node"
+printf '%s\n' \
+  '#!/bin/sh' \
+  'if [ "${1:-}" = "--version" ]; then' \
+  '  printf "%s\n" 11.16.0' \
+  '  exit 0' \
+  'fi' \
+  'exit 64' \
+  >"$preferred_tool_directory/npm"
+chmod 700 \
+  "$preferred_tool_directory/node" \
+  "$preferred_tool_directory/npm"
 (
   source "$toolchain_script"
   HOME="$test_root/empty home"
+  HOMEBREW_PREFIX="$test_root/empty homebrew"
   PATH="$preferred_tool_directory:/usr/bin:/bin"
-  inpage_provider_prepare_tool_path
+  inpage_provider_prepare_tool_path "$preferred_tool_repository"
   [[ "$(command -v node)" == "$preferred_tool_directory/node" ]]
 ) || fail "tool discovery replaced the caller-selected pinned runtime"
+
+unpinned_tool_directory="$test_root/unpinned tools"
+pinned_tool_repository="$test_root/pinned tool repository"
+pinned_homebrew_prefix="$test_root/pinned homebrew"
+pinned_tool_directory="$pinned_homebrew_prefix/opt/node@24/bin"
+mkdir -p \
+  "$unpinned_tool_directory" \
+  "$pinned_tool_repository/Workers/alchemy-jwt" \
+  "$pinned_tool_directory"
+printf '%s\n' "24.18.0" \
+  >"$pinned_tool_repository/Workers/alchemy-jwt/.nvmrc"
+printf '%s\n' \
+  '#!/bin/sh' \
+  'if [ "${1:-}" = "--version" ]; then' \
+  '  printf "%s\n" v26.5.0' \
+  '  exit 0' \
+  'fi' \
+  'exit 64' \
+  >"$unpinned_tool_directory/node"
+printf '%s\n' \
+  '#!/bin/sh' \
+  'if [ "${1:-}" = "--version" ]; then' \
+  '  printf "%s\n" v24.18.0' \
+  '  exit 0' \
+  'fi' \
+  'exit 64' \
+  >"$pinned_tool_directory/node"
+printf '%s\n' \
+  '#!/bin/sh' \
+  'if [ "${1:-}" = "--version" ]; then' \
+  '  printf "%s\n" 11.17.0' \
+  '  exit 0' \
+  'fi' \
+  'exit 64' \
+  >"$unpinned_tool_directory/npm"
+printf '%s\n' \
+  '#!/bin/sh' \
+  'if [ "${1:-}" = "--version" ]; then' \
+  '  printf "%s\n" 11.16.0' \
+  '  exit 0' \
+  'fi' \
+  'if [ "${1:-}" = run ] && [ "${2:-}" = child-node ]; then' \
+  '  node --version' \
+  '  exit $?' \
+  'fi' \
+  'exit 64' \
+  >"$pinned_tool_directory/npm"
+printf '%s\n' \
+  '#!/bin/sh' \
+  'printf "%s\n" caller-selected-asc' \
+  >"$unpinned_tool_directory/asc"
+printf '%s\n' \
+  '#!/bin/sh' \
+  'printf "%s\n" pinned-directory-asc' \
+  >"$pinned_tool_directory/asc"
+chmod 700 \
+  "$unpinned_tool_directory/node" \
+  "$unpinned_tool_directory/npm" \
+  "$unpinned_tool_directory/asc" \
+  "$pinned_tool_directory/node" \
+  "$pinned_tool_directory/npm" \
+  "$pinned_tool_directory/asc"
+(
+  source "$toolchain_script"
+  HOME="$test_root/empty home"
+  HOMEBREW_PREFIX="$pinned_homebrew_prefix"
+  PATH="$unpinned_tool_directory:/usr/bin:/bin"
+  inpage_provider_prepare_tool_path "$pinned_tool_repository"
+  [[ "${PATH%%:*}" == "$unpinned_tool_directory" ]]
+  [[ "$(inpage_provider_run_node --version)" == "v24.18.0" ]]
+  [[ "$(inpage_provider_run_npm --version)" == "11.16.0" ]]
+  [[ "$(inpage_provider_run_npm run child-node)" == "v24.18.0" ]]
+  [[ "$(asc)" == "caller-selected-asc" ]]
+  inpage_provider_prepare_tool_path "$test_root/missing repository"
+  [[ "$(inpage_provider_run_node --version)" == "v26.5.0" ]]
+  [[ "$(inpage_provider_run_npm --version)" == "11.17.0" ]]
+  [[ "$(asc)" == "caller-selected-asc" ]]
+) || fail "tool discovery did not select the repository-pinned Homebrew runtime"
 
 tracked_kid="$(jq -r '.env.ALCHEMY_JWT_EXPECTED_KID // empty' "$workflow_file")"
 tracked_worker_version="$(jq -r '.env.ALCHEMY_JWT_EXPECTED_WORKER_VERSION // empty' "$workflow_file")"
@@ -502,7 +602,7 @@ awk '
     exit
   }
 ' "$common_script" >"$verifier_wrapper"
-grep -F "npm run verify:release --" "$verifier_wrapper" >/dev/null \
+grep -F "run_alchemy_release_npm run verify:release --" "$verifier_wrapper" >/dev/null \
   || fail "the ASC gate does not use the narrow Worker release verifier"
 for legacy_auth_variable in \
   CLOUDFLARE_API_KEY \
@@ -549,6 +649,7 @@ for relative_file in \
   Scripts/asc/common.sh \
   Scripts/asc/ensure_version.sh \
   Scripts/asc/submit_review.sh \
+  Scripts/inpage_provider_toolchain.sh \
   Scripts/validate_alchemy_jwt_request_proof_key.sh \
   Scripts/alchemy_jwt_request_proof_key_common.sh \
   Scripts/alchemy_login_keychain_supervisor.pl \

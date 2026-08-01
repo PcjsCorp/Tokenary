@@ -16,7 +16,7 @@ unset _asc_entrypoint_source _asc_entrypoint_directory
 require_cmd xcodebuild
 require_cmd plutil
 require_cmd jq
-inpage_provider_prepare_tool_path
+inpage_provider_prepare_tool_path "$REPO_ROOT"
 require_inpage_provider_toolchain
 
 validate_export_options "$ASC_EXPORT_OPTIONS"
