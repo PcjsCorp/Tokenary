@@ -851,18 +851,6 @@ struct Transaction {
         )
     }
 
-    func maximumFeeWithSymbol(
-        chain: EthereumNetwork,
-        price: Double?
-    ) -> String {
-        return formattedNetworkFee(
-            maximumFeeValue,
-            chain: chain,
-            price: price,
-            label: Strings.maximumFee
-        )
-    }
-
     private func formattedNetworkFee(
         _ fee: BigUInt?,
         chain: EthereumNetwork,
@@ -883,16 +871,6 @@ struct Transaction {
         return "\(label): \(feeString)"
     }
 
-    static func feePerGasWithLabel(
-        _ label: String,
-        value: BigUInt?
-    ) -> String {
-        let valueText = editableGwei(fromWei: value)
-            .map { "\($0) \(Strings.gwei)" } ??
-            Strings.calculating.withEllipsis
-        return "\(label): \(valueText)"
-    }
-
     func feeSummaryLines(
         chain: EthereumNetwork,
         price: Double?
@@ -905,19 +883,11 @@ struct Transaction {
         }
 
         return [
-            feeWithSymbol(
+            formattedNetworkFee(
+                maximumFeeValue,
                 chain: chain,
                 price: price,
-                label: Strings.estimatedFee
-            ),
-            maximumFeeWithSymbol(chain: chain, price: price),
-            Self.feePerGasWithLabel(
-                Strings.priorityFee,
-                value: maxPriorityFeePerGasValue
-            ),
-            Self.feePerGasWithLabel(
-                Strings.maxFee,
-                value: maxFeePerGasValue
+                label: Strings.fee
             ),
         ]
     }

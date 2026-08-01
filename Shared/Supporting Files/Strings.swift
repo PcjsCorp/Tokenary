@@ -91,8 +91,6 @@ struct Strings {
     static let nonce = loc("Nonce")
     static let gasPrice = loc("Gas price")
     static let networkFees = loc("Network fees")
-    static let estimatedFee = loc("Estimated fee")
-    static let maximumFee = loc("Maximum fee")
     static let maxPriorityFee = loc("Max priority fee")
     static let priorityFee = loc("Priority fee")
     static let maxFee = loc("Max fee")
