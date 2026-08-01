@@ -291,6 +291,7 @@ struct EditTransactionView: View {
                         )
                         .buttonStyle(.plain)
                         .foregroundColor(.secondary)
+                        .padding(.trailing, 7)
                         .disableMacOSFocusEffect()
                         .accessibilityIdentifier(
                             "useSuggestedTransactionFees"
@@ -534,7 +535,7 @@ private struct TransactionTextField: View {
             if let suffix {
                 Text(suffix)
                     .font(.callout)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.tertiary)
                     .fixedSize()
                     .layoutPriority(1)
                     .contentShape(Rectangle())
