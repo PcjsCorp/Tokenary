@@ -29,13 +29,6 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 } else {
                     context.cancelRequest(withError: HandlerError.empty)
                 }
-            case .prewarmAlchemy:
-                prewarmAlchemy(
-                    id: id,
-                    provider: internalSafariRequest.provider,
-                    chainId: internalSafariRequest.chainId,
-                    context: context
-                )
             case .getResponse:
                 if let response = ExtensionBridge.getResponse(id: id) {
                     ExtensionBridge.removeResponse(id: id)
@@ -86,26 +79,6 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             }
         } else {
             context.cancelRequest(withError: HandlerError.empty)
-        }
-    }
-
-    private func prewarmAlchemy(
-        id: Int,
-        provider: InpageProvider?,
-        chainId: String?,
-        context: NSExtensionContext
-    ) {
-        guard SafariAlchemyPrewarmPolicy.allowsPrewarm(
-            provider: provider,
-            chainId: chainId
-        ) else {
-            Self.respond(with: ["id": id], context: context)
-            return
-        }
-
-        Task(priority: .utility) {
-            await AlchemyJWTProvider.shared.prewarmForImmediateUse()
-            Self.respond(with: ["id": id], context: context)
         }
     }
 

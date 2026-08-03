@@ -5,9 +5,8 @@ struct InternalSafariRequest: Decodable {
     let subject: Subject
     let body: String?
     let chainId: String?
-    let provider: InpageProvider?
     
     enum Subject: String, Decodable {
-        case getResponse, cancelRequest, rpc, prewarmAlchemy
+        case getResponse, cancelRequest, rpc
     }
 }

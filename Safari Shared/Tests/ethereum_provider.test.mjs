@@ -1,6 +1,7 @@
 // ∅ 2026 lil org
 
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -49,6 +50,23 @@ const idMappingSource = buildSync({
     target: "safari15",
     write: false,
 }).outputFiles[0].text;
+const rpcResponseSource = buildSync({
+    bundle: true,
+    entryPoints: [
+        fileURLToPath(
+            new URL("../Inpage Provider/rpc_response.js", import.meta.url)
+        ),
+    ],
+    format: "cjs",
+    logLevel: "silent",
+    platform: "browser",
+    target: "safari15",
+    write: false,
+}).outputFiles[0].text;
+const inpageSource = await readFile(
+    new URL("../Resources/inpage.js", import.meta.url),
+    "utf8"
+);
 
 function normalized(value) {
     return JSON.parse(JSON.stringify(value));
@@ -76,6 +94,77 @@ function makeFrozenClockIdMapping() {
         filename: "id-mapping.cjs",
     }).runInContext(context);
     return new context.module.exports();
+}
+
+function normalizedRPCResponse(response, id) {
+    const context = vm.createContext({
+        module: {
+            exports: {},
+        },
+    });
+    new vm.Script(rpcResponseSource, {
+        filename: "rpc-response.cjs",
+    }).runInContext(context);
+    return context.module.exports.normalizedRPCResponse(response, id);
+}
+
+function makeInpageBridgeHarness() {
+    const listeners = new Map();
+    class HarnessEvent {
+        constructor(type, options = {}) {
+            this.type = type;
+            Object.assign(this, options);
+        }
+    }
+    class HarnessCustomEvent extends HarnessEvent {
+        constructor(type, options = {}) {
+            super(type, options);
+            this.detail = options.detail;
+        }
+    }
+    const window = {
+        addEventListener(name, listener) {
+            const registered = listeners.get(name) || [];
+            registered.push(listener);
+            listeners.set(name, registered);
+        },
+        dispatchEvent(event) {
+            for (const listener of listeners.get(event.type) || []) {
+                listener.call(window, event);
+            }
+            return true;
+        },
+        navigator: {},
+        postMessage() {},
+    };
+    const context = vm.createContext({
+        clearTimeout() {},
+        console: {
+            error() {},
+            log() {},
+        },
+        CustomEvent: HarnessCustomEvent,
+        Event: HarnessEvent,
+        setTimeout() {
+            return 1;
+        },
+        window,
+    });
+    new vm.Script(inpageSource, {
+        filename: "inpage.js",
+    }).runInContext(context);
+
+    return {
+        dispatchMessage(data) {
+            for (const listener of listeners.get("message") || []) {
+                listener.call(window, {
+                    data,
+                    source: window,
+                });
+            }
+        },
+        window,
+    };
 }
 
 function makeProviderFromSource(source, providerName, extraGlobals = {}) {
@@ -174,6 +263,103 @@ function deliverSolanaError(
     assert.equal(provider.idMapping.intIds.has(id), false);
     return callbackError;
 }
+
+test("accepts a matching correlated RPC response", () => {
+    assert.deepEqual(
+        normalized(normalizedRPCResponse({
+            id: 42,
+            result: "0x2a",
+        }, 42)),
+        {
+            id: 42,
+            result: "0x2a",
+        }
+    );
+});
+
+test("rejects malformed RPC bridge responses", () => {
+    for (const response of [undefined, null, [], {}, "invalid"]) {
+        assert.equal(normalizedRPCResponse(response, 42), undefined);
+    }
+    assert.equal(
+        normalizedRPCResponse({ result: "0x2a" }, undefined),
+        undefined
+    );
+    assert.equal(
+        normalizedRPCResponse({ id: 99, result: "0x2a" }, 42),
+        undefined
+    );
+});
+
+test("accepts an old content response ID without an envelope ID", () => {
+    assert.deepEqual(
+        normalized(normalizedRPCResponse({
+            id: 42,
+            result: "0x2a",
+        }, undefined)),
+        {
+            id: 42,
+            result: "0x2a",
+        }
+    );
+});
+
+test("routes only valid RPC responses through the bundled listener", () => {
+    const harness = makeInpageBridgeHarness();
+    const deliveries = [];
+    harness.window.ethereum.processBigWalletResponse = (...arguments_) => {
+        deliveries.push(normalized(arguments_));
+    };
+
+    harness.dispatchMessage({
+        direction: "rpc-back",
+        id: 42,
+    });
+    assert.deepEqual(deliveries, []);
+
+    harness.dispatchMessage({
+        direction: "rpc-back",
+        id: 42,
+        response: {
+            id: 99,
+            result: "0x2a",
+        },
+    });
+    assert.deepEqual(deliveries, []);
+
+    harness.dispatchMessage({
+        direction: "rpc-back",
+        id: 42,
+        response: {
+            id: 42,
+            result: "0x2a",
+        },
+    });
+    harness.dispatchMessage({
+        direction: "rpc-back",
+        response: {
+            id: 43,
+            result: "0x2b",
+        },
+    });
+
+    assert.deepEqual(deliveries, [
+        [
+            42,
+            {
+                id: 42,
+                result: "0x2a",
+            },
+        ],
+        [
+            43,
+            {
+                id: 43,
+                result: "0x2b",
+            },
+        ],
+    ]);
+});
 
 test("preserves a native Ethereum response error code and message", () => {
     const provider = makeProvider();

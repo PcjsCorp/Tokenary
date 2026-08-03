@@ -48,21 +48,9 @@
 		2FA400000000000000000002 /* AlchemyJWTProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA400000000000000000001 /* AlchemyJWTProviderTests.swift */; };
 		2FA400000000000000000003 /* AlchemyJWTProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA400000000000000000001 /* AlchemyJWTProviderTests.swift */; };
 		2FA400000000000000000004 /* AlchemyJWTProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA400000000000000000001 /* AlchemyJWTProviderTests.swift */; };
-		2FB000000000000000000002 /* SafariAlchemyPrewarmPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB000000000000000000001 /* SafariAlchemyPrewarmPolicy.swift */; };
-		2FB000000000000000000003 /* SafariAlchemyPrewarmPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB000000000000000000001 /* SafariAlchemyPrewarmPolicy.swift */; };
-		2FB000000000000000000004 /* SafariAlchemyPrewarmPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB000000000000000000001 /* SafariAlchemyPrewarmPolicy.swift */; };
-		2FB000000000000000000005 /* SafariAlchemyPrewarmPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB000000000000000000001 /* SafariAlchemyPrewarmPolicy.swift */; };
-		2FB000000000000000000006 /* SafariAlchemyPrewarmPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB000000000000000000001 /* SafariAlchemyPrewarmPolicy.swift */; };
-		2FB000000000000000000007 /* SafariAlchemyPrewarmPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB000000000000000000001 /* SafariAlchemyPrewarmPolicy.swift */; };
-		2FB100000000000000000002 /* SafariPrewarmBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB100000000000000000001 /* SafariPrewarmBridgeTests.swift */; };
-		2FB100000000000000000003 /* SafariPrewarmBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB100000000000000000001 /* SafariPrewarmBridgeTests.swift */; };
-		2FB100000000000000000004 /* SafariPrewarmBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB100000000000000000001 /* SafariPrewarmBridgeTests.swift */; };
 		2FB200000000000000000002 /* AlchemyJWTProductionContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB200000000000000000001 /* AlchemyJWTProductionContractTests.swift */; };
 		2FB200000000000000000003 /* AlchemyJWTProductionContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB200000000000000000001 /* AlchemyJWTProductionContractTests.swift */; };
 		2FB200000000000000000004 /* AlchemyJWTProductionContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB200000000000000000001 /* AlchemyJWTProductionContractTests.swift */; };
-		2FB300000000000000000002 /* InternalSafariRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C90E61C27B2C5C100C8991E /* InternalSafariRequest.swift */; };
-		2FB300000000000000000003 /* InternalSafariRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C90E61C27B2C5C100C8991E /* InternalSafariRequest.swift */; };
-		2FB300000000000000000004 /* InternalSafariRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C90E61C27B2C5C100C8991E /* InternalSafariRequest.swift */; };
 		2FA200000000000000000002 /* CustomNetworkStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA200000000000000000001 /* CustomNetworkStorageTests.swift */; };
 		2FA200000000000000000003 /* CustomNetworkStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA200000000000000000001 /* CustomNetworkStorageTests.swift */; };
 		2FA200000000000000000004 /* CustomNetworkStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA200000000000000000001 /* CustomNetworkStorageTests.swift */; };
@@ -667,8 +655,6 @@
 		2FA100000000000000000001 /* SafariRPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariRPCClient.swift; sourceTree = "<group>"; };
 		2FA200000000000000000001 /* CustomNetworkStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomNetworkStorageTests.swift; sourceTree = "<group>"; };
 		2FA400000000000000000001 /* AlchemyJWTProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlchemyJWTProviderTests.swift; sourceTree = "<group>"; };
-		2FB000000000000000000001 /* SafariAlchemyPrewarmPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariAlchemyPrewarmPolicy.swift; sourceTree = "<group>"; };
-		2FB100000000000000000001 /* SafariPrewarmBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariPrewarmBridgeTests.swift; sourceTree = "<group>"; };
 		2FB200000000000000000001 /* AlchemyJWTProductionContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlchemyJWTProductionContractTests.swift; sourceTree = "<group>"; };
 		0D059AD126C2796200EE3023 /* ApprovalSubject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalSubject.swift; sourceTree = "<group>"; };
 		0DC850E626B73A5900809E82 /* AuthenticationReason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationReason.swift; sourceTree = "<group>"; };
@@ -948,7 +934,6 @@
 				2FB200000000000000000001 /* AlchemyJWTProductionContractTests.swift */,
 				2FA400000000000000000001 /* AlchemyJWTProviderTests.swift */,
 				019DDEDE91F4418190B03EFB /* NetworkCatalogTests.swift */,
-				2FB100000000000000000001 /* SafariPrewarmBridgeTests.swift */,
 				2FA200000000000000000001 /* CustomNetworkStorageTests.swift */,
 				2C0000012FA7000000000001 /* BigUIntTests.swift */,
 				2F2A00000000000000000015 /* DappRequestProcessorTests.swift */,
@@ -1318,7 +1303,6 @@
 			children = (
 				2C773F5D27450B97007B04E7 /* ExtensionBridge.swift */,
 				2C9B2C6A2D38415F00D56607 /* SharedDefaults.swift */,
-				2FB000000000000000000001 /* SafariAlchemyPrewarmPolicy.swift */,
 				2FA100000000000000000001 /* SafariRPCClient.swift */,
 				2C09CBA1273979C1009AD39B /* SafariWebExtensionHandler.swift */,
 				2C264BDA27B5A94400234393 /* Models */,
@@ -2390,7 +2374,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				2FA300000000000000000002 /* AlchemyJWTProvider.swift in Sources */,
-				2FB000000000000000000002 /* SafariAlchemyPrewarmPolicy.swift in Sources */,
 				2FA100000000000000000002 /* SafariRPCClient.swift in Sources */,
 				2CF255B2275A4A7200AE54B9 /* UserDefaults.swift in Sources */,
 				2C264BD227B2F30C00234393 /* UnknownSafariRequest.swift in Sources */,
@@ -2420,8 +2403,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				2FA300000000000000000003 /* AlchemyJWTProvider.swift in Sources */,
-				2FB000000000000000000003 /* SafariAlchemyPrewarmPolicy.swift in Sources */,
-				2FB300000000000000000002 /* InternalSafariRequest.swift in Sources */,
 				2C773FC72D53A59800879A1F /* InpageProvider.swift in Sources */,
 				2C773FE92D53C17000879A1F /* Defaults.swift in Sources */,
 				2C773FEA2D53C17000879A1F /* PriceService.swift in Sources */,
@@ -2518,8 +2499,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				2FA300000000000000000004 /* AlchemyJWTProvider.swift in Sources */,
-				2FB000000000000000000004 /* SafariAlchemyPrewarmPolicy.swift in Sources */,
-				2FB300000000000000000003 /* InternalSafariRequest.swift in Sources */,
 				2CB4031B281C99C800BAEBEE /* AccountsHeaderRowView.swift in Sources */,
 				2C728B612AFBFAF100E4DD47 /* Image.swift in Sources */,
 				2C3024FC28C1193100C304ED /* Account.swift in Sources */,
@@ -2619,8 +2598,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				2FA300000000000000000005 /* AlchemyJWTProvider.swift in Sources */,
-				2FB000000000000000000005 /* SafariAlchemyPrewarmPolicy.swift in Sources */,
-				2FB300000000000000000004 /* InternalSafariRequest.swift in Sources */,
 				2C6F6D5A28273FE500D6E8FB /* EditAccountsViewController.swift in Sources */,
 				2CF255BA275A749300AE54B9 /* ApproveViewController.swift in Sources */,
 				2C9B2C6E2D38416800D56607 /* SharedDefaults.swift in Sources */,
@@ -2718,7 +2695,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				2FA300000000000000000006 /* AlchemyJWTProvider.swift in Sources */,
-				2FB000000000000000000006 /* SafariAlchemyPrewarmPolicy.swift in Sources */,
 				2FA100000000000000000006 /* SafariRPCClient.swift in Sources */,
 				2C773FCC2D53A5A300879A1F /* MultipleResponseToExtension.swift in Sources */,
 				2C773FCD2D53A5A300879A1F /* ResponseToExtension.swift in Sources */,
@@ -2748,7 +2724,6 @@
 			files = (
 				2FB200000000000000000002 /* AlchemyJWTProductionContractTests.swift in Sources */,
 				2FA400000000000000000002 /* AlchemyJWTProviderTests.swift in Sources */,
-				2FB100000000000000000002 /* SafariPrewarmBridgeTests.swift in Sources */,
 				2FA300000000000000000007 /* AlchemyJWTProvider.swift in Sources */,
 				31B7B994991C4E64B5DF44B5 /* NetworkCatalogTests.swift in Sources */,
 				2FA100000000000000000009 /* SafariRPCClient.swift in Sources */,
@@ -2875,7 +2850,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				2FA300000000000000000009 /* AlchemyJWTProvider.swift in Sources */,
-				2FB000000000000000000007 /* SafariAlchemyPrewarmPolicy.swift in Sources */,
 				2FA100000000000000000008 /* SafariRPCClient.swift in Sources */,
 				2CE0594627640F470042D844 /* UserDefaults.swift in Sources */,
 				2C264BD327B2F30C00234393 /* UnknownSafariRequest.swift in Sources */,
@@ -2905,7 +2879,6 @@
 			files = (
 				2FB200000000000000000003 /* AlchemyJWTProductionContractTests.swift in Sources */,
 				2FA400000000000000000003 /* AlchemyJWTProviderTests.swift in Sources */,
-				2FB100000000000000000003 /* SafariPrewarmBridgeTests.swift in Sources */,
 				2FA30000000000000000000A /* AlchemyJWTProvider.swift in Sources */,
 				80762825D41E4714A724F485 /* NetworkCatalogTests.swift in Sources */,
 				2FA10000000000000000000A /* SafariRPCClient.swift in Sources */,
@@ -2935,7 +2908,6 @@
 			files = (
 				2FB200000000000000000004 /* AlchemyJWTProductionContractTests.swift in Sources */,
 				2FA400000000000000000004 /* AlchemyJWTProviderTests.swift in Sources */,
-				2FB100000000000000000004 /* SafariPrewarmBridgeTests.swift in Sources */,
 				2FA30000000000000000000B /* AlchemyJWTProvider.swift in Sources */,
 				AAD675E18CDB4174B2B92C3D /* NetworkCatalogTests.swift in Sources */,
 				2FA10000000000000000000B /* SafariRPCClient.swift in Sources */,

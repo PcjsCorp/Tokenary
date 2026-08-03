@@ -2,11 +2,7 @@
 
 function handleOnMessage(request, sender, sendResponse) {
     if (request.subject === "rpc") {
-        browser.runtime.sendNativeMessage("org.lil.wallet", request).then(response => {
-            if (typeof response !== "undefined") {
-                sendResponse(response);
-            } else { sendResponse(); }
-        }).catch(() => { sendResponse(); });
+        sendRPCRequest(request, sendResponse);
     } else if (request.subject === "message-to-wallet") {
         browser.runtime.sendNativeMessage("org.lil.wallet", request.message).then(response => {
             if (typeof response !== "undefined") {
@@ -38,30 +34,16 @@ function handleOnMessage(request, sender, sendResponse) {
         sendResponse();
     } else if (request.subject === "getLatestConfiguration") {
         const host = request.host;
-        const hostGeneration =
-            retainAlchemyPrewarmHostGenerationRead(host);
         const queuedWrite = latestConfigurationWriteQueues.get(host);
-        let canPrewarm = true;
         const waitForWrite = queuedWrite ?
-            queuedWrite.catch(() => {
-                canPrewarm = false;
-            }) :
+            queuedWrite.catch(() => {}) :
             Promise.resolve();
         waitForWrite.then(() => {
             return getLatestConfiguration(host);
         }).then(currentConfiguration => {
-            if (canPrewarm &&
-                currentAlchemyPrewarmHostGeneration(host) ===
-                hostGeneration) {
-                prewarmAlchemyIfConfigured(currentConfiguration, host);
-            }
             sendResponse(currentConfiguration);
         }).catch(() => {
             sendResponse();
-        }).then(() => {
-            releaseAlchemyPrewarmHostGenerationRead(host);
-        }, () => {
-            releaseAlchemyPrewarmHostGenerationRead(host);
         });
     } else if (request.subject === "disconnect") {
         const provider = request.provider;
@@ -82,6 +64,41 @@ function handleOnMessage(request, sender, sendResponse) {
     return true;
 }
 
+function sendRPCRequest(request, sendResponse) {
+    const sendFailure = () => {
+        sendResponse(rpcFailureResponse(request.id));
+    };
+    let pendingRequest;
+    try {
+        pendingRequest = browser.runtime.sendNativeMessage(
+            "org.lil.wallet",
+            request
+        );
+    } catch (error) {
+        sendFailure();
+        return;
+    }
+    Promise.resolve(pendingRequest).then(response => {
+        if (response &&
+            typeof response === "object" &&
+            !Array.isArray(response) &&
+            response.id === request.id &&
+            ("result" in response || "error" in response)) {
+            sendResponse(response);
+        } else {
+            sendFailure();
+        }
+    }, sendFailure);
+}
+
+function rpcFailureResponse(id) {
+    return {
+        id: id,
+        error: "Failed to communicate with Big Wallet",
+        errorCode: -32603
+    };
+}
+
 function sendDisconnectResponse(request, sendResponse, response) {
     if (typeof request.id === "undefined") {
         sendResponse();
@@ -95,17 +112,8 @@ function sendDisconnectResponse(request, sendResponse, response) {
 }
 
 const latestConfigurationWriteQueues = new Map();
-let alchemyPrewarmRequest;
-let activeAlchemyPrewarmConfiguration;
-let pendingAlchemyPrewarmConfiguration;
-let pendingAlchemyPrewarmHosts = new Map();
-let nextAlchemyPrewarmGeneration = 0;
-const alchemyPrewarmHostStates = new Map();
 
 function storeLatestConfiguration(host, configuration) {
-    const replacesEthereumConfiguration = Array.isArray(configuration) ||
-        (configuration &&
-            configuration.provider === "ethereum");
     if (Array.isArray(configuration)) {
         queueLatestConfigurationWrite(host, () => {
             return browser.storage.local.set({ [host]: latestConfigurationsArray(configuration) });
@@ -113,11 +121,6 @@ function storeLatestConfiguration(host, configuration) {
     } else if (configuration && "provider" in configuration) {
         queueLatestConfigurationUpdate(host, latestArray => latestConfigurationsReplacing(latestArray, configuration));
     }
-    prewarmAlchemyIfConfigured(
-        configuration,
-        host,
-        replacesEthereumConfiguration
-    );
 }
 
 function latestConfigurationsReplacing(latestArray, configuration) {
@@ -133,20 +136,8 @@ function latestConfigurationsReplacing(latestArray, configuration) {
 }
 
 function removeLatestConfiguration(host, provider) {
-    const ethereumRemovalGeneration = provider === "ethereum" ?
-        advanceAlchemyPrewarmHostGeneration(host) :
-        undefined;
-    const removal = queueLatestConfigurationUpdate(host, (latestArray) => {
+    return queueLatestConfigurationUpdate(host, (latestArray) => {
         return latestArray.filter(configuration => configuration.provider != provider);
-    });
-    if (typeof ethereumRemovalGeneration === "undefined") {
-        return removal;
-    }
-    return removal.then(() => {
-        removePendingAlchemyPrewarmHost(
-            host,
-            ethereumRemovalGeneration
-        );
     });
 }
 
@@ -176,7 +167,6 @@ function queueLatestConfigurationWrite(host, write) {
     const clearQueueIfLatest = () => {
         if (latestConfigurationWriteQueues.get(host) === queuedWrite) {
             latestConfigurationWriteQueues.delete(host);
-            pruneAlchemyPrewarmHostState(host);
         }
     };
     queuedWrite.then(clearQueueIfLatest, clearQueueIfLatest);
@@ -201,186 +191,6 @@ function readLatestConfigurations(host) {
     return browser.storage.local.get(host).then(stored => {
         return latestConfigurationsArray(stored[host]);
     });
-}
-
-function prewarmAlchemyIfConfigured(
-    configuration,
-    host,
-    replacesEthereumConfiguration
-) {
-    let hostGeneration = currentAlchemyPrewarmHostGeneration(host);
-    if (replacesEthereumConfiguration) {
-        hostGeneration = advanceAlchemyPrewarmHostGeneration(host);
-        removePendingAlchemyPrewarmHost(host);
-    }
-    const configurations = latestConfigurationsArray(configuration);
-    const current = configurations.find(current =>
-        current &&
-        current.provider === "ethereum" &&
-        typeof current.chainId === "string"
-    );
-    if (!current) {
-        return;
-    }
-    if (alchemyPrewarmRequest) {
-        if (sameAlchemyPrewarmConfiguration(
-                current,
-                activeAlchemyPrewarmConfiguration
-            )) {
-            return;
-        }
-        if (sameAlchemyPrewarmConfiguration(
-                current,
-                pendingAlchemyPrewarmConfiguration
-            )) {
-            setPendingAlchemyPrewarmHost(host, hostGeneration);
-            return;
-        }
-        pendingAlchemyPrewarmConfiguration = current;
-        replacePendingAlchemyPrewarmHosts(
-            new Map([[host, hostGeneration]])
-        );
-        return;
-    }
-
-    const request = {
-        id: genId(),
-        subject: "prewarmAlchemy",
-        provider: current.provider,
-        chainId: current.chainId
-    };
-
-    let pendingRequest;
-    try {
-        pendingRequest = browser.runtime.sendNativeMessage(
-            "org.lil.wallet",
-            request
-        );
-    } catch (error) {
-        return;
-    }
-    alchemyPrewarmRequest = pendingRequest;
-    activeAlchemyPrewarmConfiguration = current;
-    const clearPendingRequest = () => {
-        if (alchemyPrewarmRequest === pendingRequest) {
-            alchemyPrewarmRequest = undefined;
-            activeAlchemyPrewarmConfiguration = undefined;
-            const pendingConfiguration = pendingAlchemyPrewarmConfiguration;
-            const pendingHosts = pendingAlchemyPrewarmHosts;
-            pendingAlchemyPrewarmConfiguration = undefined;
-            pendingAlchemyPrewarmHosts = new Map();
-            if (pendingConfiguration) {
-                for (const [pendingHost, pendingGeneration] of
-                    pendingHosts) {
-                    if (currentAlchemyPrewarmHostGeneration(pendingHost) !==
-                        pendingGeneration) {
-                        pruneAlchemyPrewarmHostState(pendingHost);
-                        continue;
-                    }
-                    prewarmAlchemyIfConfigured(
-                        [pendingConfiguration],
-                        pendingHost
-                    );
-                    pruneAlchemyPrewarmHostState(pendingHost);
-                }
-            } else {
-                for (const pendingHost of pendingHosts.keys()) {
-                    pruneAlchemyPrewarmHostState(pendingHost);
-                }
-            }
-        }
-    };
-    pendingRequest.then(clearPendingRequest, clearPendingRequest);
-}
-
-function currentAlchemyPrewarmHostGeneration(host) {
-    const state = alchemyPrewarmHostStates.get(host);
-    return state ? state.generation : 0;
-}
-
-function advanceAlchemyPrewarmHostGeneration(host) {
-    nextAlchemyPrewarmGeneration += 1;
-    const state = alchemyPrewarmHostState(host);
-    state.generation = nextAlchemyPrewarmGeneration;
-    return state.generation;
-}
-
-function retainAlchemyPrewarmHostGenerationRead(host) {
-    const state = alchemyPrewarmHostState(host);
-    state.inFlightReadCount += 1;
-    return state.generation;
-}
-
-function releaseAlchemyPrewarmHostGenerationRead(host) {
-    const state = alchemyPrewarmHostStates.get(host);
-    if (!state) {
-        return;
-    }
-    if (state.inFlightReadCount > 0) {
-        state.inFlightReadCount -= 1;
-    }
-    pruneAlchemyPrewarmHostState(host);
-}
-
-function alchemyPrewarmHostState(host) {
-    let state = alchemyPrewarmHostStates.get(host);
-    if (!state) {
-        state = {
-            generation: 0,
-            inFlightReadCount: 0,
-        };
-        alchemyPrewarmHostStates.set(host, state);
-    }
-    return state;
-}
-
-function pruneAlchemyPrewarmHostState(host) {
-    const state = alchemyPrewarmHostStates.get(host);
-    if (!state ||
-        state.inFlightReadCount !== 0 ||
-        latestConfigurationWriteQueues.has(host) ||
-        pendingAlchemyPrewarmHosts.has(host)) {
-        return;
-    }
-    alchemyPrewarmHostStates.delete(host);
-}
-
-function setPendingAlchemyPrewarmHost(host, generation) {
-    const state = alchemyPrewarmHostState(host);
-    state.generation = generation;
-    pendingAlchemyPrewarmHosts.set(host, generation);
-}
-
-function replacePendingAlchemyPrewarmHosts(nextPendingHosts) {
-    const previousPendingHosts = pendingAlchemyPrewarmHosts;
-    pendingAlchemyPrewarmHosts = new Map();
-    for (const [host, generation] of nextPendingHosts) {
-        setPendingAlchemyPrewarmHost(host, generation);
-    }
-    for (const host of previousPendingHosts.keys()) {
-        pruneAlchemyPrewarmHostState(host);
-    }
-}
-
-function removePendingAlchemyPrewarmHost(host, throughGeneration) {
-    const pendingGeneration = pendingAlchemyPrewarmHosts.get(host);
-    if (typeof throughGeneration !== "undefined" &&
-        typeof pendingGeneration !== "undefined" &&
-        pendingGeneration > throughGeneration) {
-        return;
-    }
-    pendingAlchemyPrewarmHosts.delete(host);
-    if (pendingAlchemyPrewarmHosts.size === 0) {
-        pendingAlchemyPrewarmConfiguration = undefined;
-    }
-    pruneAlchemyPrewarmHostState(host);
-}
-
-function sameAlchemyPrewarmConfiguration(lhs, rhs) {
-    return lhs &&
-        rhs &&
-        lhs.provider === rhs.provider &&
-        lhs.chainId === rhs.chainId;
 }
 
 function getLatestConfiguration(host) {

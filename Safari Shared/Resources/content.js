@@ -13,12 +13,8 @@ if (!("pendingRequestsIds" in document)) {
 
 function setup() {
     if (shouldInjectProvider()) {
-        if (document.readyState != "loading") {
-            window.location.reload();
-        } else {
-            injectScript();
-            getLatestConfiguration();
-        }
+        injectScript();
+        getLatestConfiguration();
     }
     
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -36,9 +32,19 @@ function setup() {
     window.addEventListener("message", event => {
         if (event.source == window && event.data) {
             if (event.data.direction == "rpc") {
-                browser.runtime.sendMessage(event.data.message).then(response => {
-                    window.postMessage({direction: "rpc-back", response: response}, "*");
-                }).catch(() => {});
+                const request = event.data.message;
+                let pendingResponse;
+                try {
+                    pendingResponse = browser.runtime.sendMessage(request);
+                } catch (error) {
+                    sendRPCResponseToInpage(request);
+                    return;
+                }
+                Promise.resolve(pendingResponse).then(response => {
+                    sendRPCResponseToInpage(request, response);
+                }, () => {
+                    sendRPCResponseToInpage(request);
+                });
             } else if (event.data.direction == "from-page-script") {
                 sendMessageToNativeApp(event.data.message, false);
             } else if (event.data.subject == "disconnect") {
@@ -65,6 +71,30 @@ function setup() {
     });
     
     document.addEventListener('visibilitychange', didChangeVisibility);
+}
+
+function sendRPCResponseToInpage(request, response) {
+    const id = request && request.id;
+    const resolvedResponse = response &&
+        typeof response === "object" &&
+        !Array.isArray(response) &&
+        response.id === id &&
+        ("result" in response || "error" in response)
+        ? response
+        : rpcFailureResponse(id);
+    window.postMessage({
+        direction: "rpc-back",
+        response: resolvedResponse,
+        id: id
+    }, "*");
+}
+
+function rpcFailureResponse(id) {
+    return {
+        id: id,
+        error: "Failed to communicate with Big Wallet",
+        errorCode: -32603
+    };
 }
 
 function sendDisconnectResponseToInpage(request, response) {

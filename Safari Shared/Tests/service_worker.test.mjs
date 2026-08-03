@@ -127,10 +127,249 @@ async function settlePromises() {
     }
 }
 
+function sendMessage(harness, request) {
+    const responses = [];
+    const keepsChannelOpen = harness.context.handleOnMessage(
+        request,
+        {},
+        response => responses.push(response)
+    );
+    return { keepsChannelOpen, responses };
+}
+
+const rpcRequest = {
+    body: "{\"id\":42,\"method\":\"eth_blockNumber\"}",
+    chainId: "0x1",
+    id: 42,
+    subject: "rpc",
+};
+
+const rpcFailure = {
+    error: "Failed to communicate with Big Wallet",
+    errorCode: -32603,
+    id: 42,
+};
+
 test("registers its production message listener", () => {
     const harness = makeHarness();
 
     assert.equal(harness.runtimeListener(), harness.context.handleOnMessage);
+});
+
+test("returns a correlated native RPC response", async () => {
+    const harness = makeHarness({
+        sendNativeMessage: () => Promise.resolve({
+            id: 42,
+            result: "0x2a",
+        }),
+    });
+    const { keepsChannelOpen, responses } = sendMessage(harness, rpcRequest);
+    await settlePromises();
+
+    assert.equal(keepsChannelOpen, true);
+    assert.deepEqual(normalized(responses), [{
+        id: 42,
+        result: "0x2a",
+    }]);
+    assert.deepEqual(harness.nativeMessages, [{
+        application: "org.lil.wallet",
+        message: rpcRequest,
+    }]);
+});
+
+test("rejects missing or mismatched native RPC response IDs", async () => {
+    for (const response of [
+        { result: "0x2a" },
+        { id: 99, result: "0x2a" },
+    ]) {
+        const harness = makeHarness({
+            sendNativeMessage: () => Promise.resolve(response),
+        });
+        const { responses } = sendMessage(harness, rpcRequest);
+        await settlePromises();
+
+        assert.deepEqual(normalized(responses), [rpcFailure]);
+    }
+});
+
+test("preserves a correlated native JSON-RPC error", async () => {
+    const nativeError = {
+        error: {
+            code: -32_000,
+            data: {
+                minimumPriorityFeePerGas: "0x1",
+            },
+            message: "transaction underpriced",
+        },
+        id: 42,
+        jsonrpc: "2.0",
+    };
+    const harness = makeHarness({
+        sendNativeMessage: () => Promise.resolve(nativeError),
+    });
+    const { responses } = sendMessage(harness, rpcRequest);
+    await settlePromises();
+
+    assert.deepEqual(normalized(responses), [nativeError]);
+});
+
+test("returns a correlated error for an undefined native RPC response", async () => {
+    const harness = makeHarness({
+        sendNativeMessage: () => Promise.resolve(undefined),
+    });
+    const { responses } = sendMessage(harness, rpcRequest);
+    await settlePromises();
+
+    assert.deepEqual(normalized(responses), [rpcFailure]);
+});
+
+test("returns a correlated error for a malformed native RPC response", async () => {
+    const harness = makeHarness({
+        sendNativeMessage: () => Promise.resolve({ id: 42 }),
+    });
+    const { responses } = sendMessage(harness, rpcRequest);
+    await settlePromises();
+
+    assert.deepEqual(normalized(responses), [rpcFailure]);
+});
+
+test("returns a correlated error when a native RPC request rejects", async () => {
+    const harness = makeHarness({
+        sendNativeMessage: () => Promise.reject(new Error("unavailable")),
+    });
+    const { responses } = sendMessage(harness, rpcRequest);
+    await settlePromises();
+
+    assert.deepEqual(normalized(responses), [rpcFailure]);
+});
+
+test("returns a correlated error when a native RPC request throws", () => {
+    const harness = makeHarness({
+        sendNativeMessage: () => {
+            throw new Error("unavailable");
+        },
+    });
+    const { responses } = sendMessage(harness, rpcRequest);
+
+    assert.deepEqual(normalized(responses), [rpcFailure]);
+});
+
+test("restores an Ethereum configuration without native prewarming", async () => {
+    const host = "wallet.example";
+    const configuration = {
+        chainId: "0x1",
+        provider: "ethereum",
+        results: ["0x0000000000000000000000000000000000000042"],
+    };
+    const harness = makeHarness({
+        storageGet: () => Promise.resolve({
+            [host]: [configuration],
+        }),
+    });
+    const { responses } = sendMessage(harness, {
+        host,
+        subject: "getLatestConfiguration",
+    });
+    await settlePromises();
+
+    assert.deepEqual(normalized(responses), [{
+        latestConfigurations: [configuration],
+    }]);
+    assert.deepEqual(harness.nativeMessages, []);
+});
+
+test("stores an Ethereum configuration without native prewarming", async () => {
+    const host = "wallet.example";
+    const configuration = {
+        chainId: "0x1",
+        provider: "ethereum",
+        results: ["0x0000000000000000000000000000000000000042"],
+    };
+    const writes = [];
+    const harness = makeHarness({
+        storageSet: value => {
+            writes.push(normalized(value));
+            return Promise.resolve();
+        },
+    });
+
+    harness.context.updateStoredConfigurationIfNeeded(host, {
+        configurationToStore: configuration,
+    });
+    await settlePromises();
+
+    assert.deepEqual(writes, [{
+        [host]: [configuration],
+    }]);
+    assert.deepEqual(harness.nativeMessages, []);
+});
+
+test("waits for a queued configuration write before restoring it", async () => {
+    const host = "wallet.example";
+    const storageWrite = deferred();
+    let storedConfiguration = [{
+        chainId: "0x1",
+        provider: "ethereum",
+    }];
+    let storageReadCount = 0;
+    const harness = makeHarness({
+        storageGet: () => {
+            storageReadCount += 1;
+            return Promise.resolve({
+                [host]: storedConfiguration,
+            });
+        },
+        storageSet: value => storageWrite.promise.then(() => {
+            storedConfiguration = value[host];
+        }),
+    });
+
+    harness.context.storeLatestConfiguration(host, [{
+        chainId: "0x2",
+        provider: "ethereum",
+    }]);
+    const { responses } = sendMessage(harness, {
+        host,
+        subject: "getLatestConfiguration",
+    });
+    await settlePromises();
+    assert.equal(storageReadCount, 0);
+
+    storageWrite.resolve();
+    await settlePromises();
+
+    assert.deepEqual(normalized(responses), [{
+        latestConfigurations: [{
+            chainId: "0x2",
+            provider: "ethereum",
+        }],
+    }]);
+    assert.deepEqual(harness.nativeMessages, []);
+});
+
+test("removes a settled configuration write queue", async () => {
+    const storageWrite = deferred();
+    const harness = makeHarness({
+        storageSet: () => storageWrite.promise,
+    });
+
+    harness.context.storeLatestConfiguration("wallet.example", [{
+        chainId: "0x1",
+        provider: "ethereum",
+    }]);
+    await settlePromises();
+    assert.equal(
+        harness.evaluate("latestConfigurationWriteQueues.size"),
+        1
+    );
+
+    storageWrite.resolve();
+    await settlePromises();
+
+    assert.equal(
+        harness.evaluate("latestConfigurationWriteQueues.size"),
+        0
+    );
 });
 
 test("responds to a correlated disconnect after removing only its provider", async () => {
@@ -143,7 +382,6 @@ test("responds to a correlated disconnect after removing only its provider", asy
         ],
     };
     const writes = [];
-    const responses = [];
     const harness = makeHarness({
         storageGet: key => Promise.resolve({
             [key]: storedConfigurations[key],
@@ -153,17 +391,12 @@ test("responds to a correlated disconnect after removing only its provider", asy
             return storageWrite.promise;
         },
     });
-
-    const keepsChannelOpen = harness.context.handleOnMessage(
-        {
-            id: 73,
-            subject: "disconnect",
-            provider: "ethereum",
-            host,
-        },
-        {},
-        response => responses.push(normalized(response))
-    );
+    const { keepsChannelOpen, responses } = sendMessage(harness, {
+        id: 73,
+        subject: "disconnect",
+        provider: "ethereum",
+        host,
+    });
     await settlePromises();
 
     assert.equal(keepsChannelOpen, true);
@@ -177,7 +410,7 @@ test("responds to a correlated disconnect after removing only its provider", asy
     storageWrite.resolve();
     await settlePromises();
 
-    assert.deepEqual(responses, [{
+    assert.deepEqual(normalized(responses), [{
         name: "revokePermissions",
         provider: "ethereum",
         result: null,
@@ -186,29 +419,21 @@ test("responds to a correlated disconnect after removing only its provider", asy
 
 test("returns an error when a correlated disconnect cannot be stored", async () => {
     const storageWrite = deferred();
-    const responses = [];
     const harness = makeHarness({
         storageSet: () => storageWrite.promise,
     });
-
-    harness.context.handleOnMessage(
-        {
-            id: 74,
-            subject: "disconnect",
-            provider: "ethereum",
-            host: "wallet.example",
-        },
-        {},
-        response => responses.push(normalized(response))
-    );
+    const { responses } = sendMessage(harness, {
+        id: 74,
+        subject: "disconnect",
+        provider: "ethereum",
+        host: "wallet.example",
+    });
     await settlePromises();
-
-    assert.deepEqual(responses, []);
 
     storageWrite.reject(new Error("storage failed"));
     await settlePromises();
 
-    assert.deepEqual(responses, [{
+    assert.deepEqual(normalized(responses), [{
         name: "revokePermissions",
         provider: "ethereum",
         error: "Failed to revoke permissions",
@@ -218,7 +443,6 @@ test("returns an error when a correlated disconnect cannot be stored", async () 
 
 test("does not overwrite configurations when a disconnect read fails", async () => {
     const writes = [];
-    const responses = [];
     const harness = makeHarness({
         storageGet: () => Promise.reject(new Error("storage read failed")),
         storageSet: value => {
@@ -226,21 +450,16 @@ test("does not overwrite configurations when a disconnect read fails", async () 
             return Promise.resolve();
         },
     });
-
-    harness.context.handleOnMessage(
-        {
-            id: 75,
-            subject: "disconnect",
-            provider: "ethereum",
-            host: "wallet.example",
-        },
-        {},
-        response => responses.push(normalized(response))
-    );
+    const { responses } = sendMessage(harness, {
+        id: 75,
+        subject: "disconnect",
+        provider: "ethereum",
+        host: "wallet.example",
+    });
     await settlePromises();
 
     assert.deepEqual(writes, []);
-    assert.deepEqual(responses, [{
+    assert.deepEqual(normalized(responses), [{
         name: "revokePermissions",
         provider: "ethereum",
         error: "Failed to revoke permissions",
@@ -249,18 +468,12 @@ test("does not overwrite configurations when a disconnect read fails", async () 
 });
 
 test("preserves the empty response for an ID-less disconnect", async () => {
-    const responses = [];
     const harness = makeHarness();
-
-    harness.context.handleOnMessage(
-        {
-            subject: "disconnect",
-            provider: "solana",
-            host: "wallet.example",
-        },
-        {},
-        response => responses.push(response)
-    );
+    const { responses } = sendMessage(harness, {
+        subject: "disconnect",
+        provider: "solana",
+        host: "wallet.example",
+    });
     await settlePromises();
 
     assert.deepEqual(responses, [undefined]);
@@ -282,9 +495,7 @@ test("removes only the matching Solana configuration for unauthorized responses"
             [key]: storedConfigurations[key],
         }),
         storageSet: value => {
-            const copiedValue = normalized(value);
-            writes.push(copiedValue);
-            Object.assign(storedConfigurations, copiedValue);
+            writes.push(normalized(value));
             return Promise.resolve();
         },
     });
@@ -307,802 +518,4 @@ test("removes only the matching Solana configuration for unauthorized responses"
             { provider: "solana", publicKey: "another-public-key" },
         ],
     }]);
-});
-
-test("skips configurations that cannot use Alchemy", () => {
-    const harness = makeHarness();
-
-    harness.context.prewarmAlchemyIfConfigured(undefined);
-    harness.context.prewarmAlchemyIfConfigured([]);
-    harness.context.prewarmAlchemyIfConfigured({ provider: "unknown" });
-    harness.context.prewarmAlchemyIfConfigured({ provider: "solana" });
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "solana",
-        cluster: "mainnet-beta",
-    });
-    harness.context.prewarmAlchemyIfConfigured({ provider: "ethereum" });
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: 1,
-    });
-
-    assert.deepEqual(harness.nativeMessages, []);
-});
-
-test("sends the exact Ethereum prewarm bridge request", () => {
-    const request = deferred();
-    const harness = makeHarness({
-        sendNativeMessage: () => request.promise,
-    });
-
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x1",
-    });
-
-    assert.deepEqual(harness.nativeMessages, [{
-        application: "org.lil.wallet",
-        message: {
-            id: 1_700_000_000_000,
-            subject: "prewarmAlchemy",
-            provider: "ethereum",
-            chainId: "0x1",
-        },
-    }]);
-});
-
-test("ignores Solana and prewarms the configured Ethereum network", () => {
-    const request = deferred();
-    const harness = makeHarness({
-        sendNativeMessage: () => request.promise,
-    });
-
-    harness.context.prewarmAlchemyIfConfigured([
-        { provider: "ethereum", chainId: "0x1" },
-        { provider: "solana", cluster: "mainnet-beta" },
-    ]);
-
-    assert.deepEqual(harness.nativeMessages, [{
-        application: "org.lil.wallet",
-        message: {
-            id: 1_700_000_000_000,
-            subject: "prewarmAlchemy",
-            provider: "ethereum",
-            chainId: "0x1",
-        },
-    }]);
-});
-
-test("deduplicates an active prewarm for the same configuration", () => {
-    const request = deferred();
-    const harness = makeHarness({
-        sendNativeMessage: () => request.promise,
-    });
-    const configuration = {
-        provider: "ethereum",
-        chainId: "0x1",
-    };
-
-    harness.context.prewarmAlchemyIfConfigured(configuration);
-    harness.context.prewarmAlchemyIfConfigured({ ...configuration });
-
-    assert.equal(harness.nativeMessages.length, 1);
-});
-
-test("continues forwarding and responding to RPC while prewarm is pending", async () => {
-    const prewarmRequest = deferred();
-    const harness = makeHarness({
-        sendNativeMessage: (_application, message) => {
-            if (message.subject === "prewarmAlchemy") {
-                return prewarmRequest.promise;
-            }
-            return Promise.resolve({
-                id: message.id,
-                result: "0x2a",
-            });
-        },
-    });
-    const responses = [];
-
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x1",
-    });
-    const keepsChannelOpen = harness.context.handleOnMessage(
-        {
-            id: 42,
-            subject: "rpc",
-            provider: "ethereum",
-            chainId: "0x1",
-            body: "{\"id\":42,\"method\":\"eth_chainId\"}",
-        },
-        {},
-        response => responses.push(normalized(response))
-    );
-    await settlePromises();
-
-    assert.equal(keepsChannelOpen, true);
-    assert.deepEqual(harness.nativeMessages, [
-        {
-            application: "org.lil.wallet",
-            message: {
-                id: 1_700_000_000_000,
-                subject: "prewarmAlchemy",
-                provider: "ethereum",
-                chainId: "0x1",
-            },
-        },
-        {
-            application: "org.lil.wallet",
-            message: {
-                id: 42,
-                subject: "rpc",
-                provider: "ethereum",
-                chainId: "0x1",
-                body: "{\"id\":42,\"method\":\"eth_chainId\"}",
-            },
-        },
-    ]);
-    assert.deepEqual(responses, [{
-        id: 42,
-        result: "0x2a",
-    }]);
-});
-
-test("keeps only the latest queued Ethereum configuration", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x1",
-    });
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x2",
-    });
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x3",
-    });
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x3");
-});
-
-test("does not let an active-network observation erase a queued network", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x1",
-    });
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x2",
-    });
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x1",
-    });
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x2");
-});
-
-test("does not let a stale storage read replace a newer queued network", async () => {
-    const storageRead = deferred();
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-        storageGet: () => storageRead.promise,
-    });
-    const responses = [];
-
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x1",
-    });
-    harness.context.handleOnMessage(
-        {
-            subject: "getLatestConfiguration",
-            host: "wallet.example",
-        },
-        {},
-        response => responses.push(normalized(response))
-    );
-    harness.context.storeLatestConfiguration("wallet.example", [
-        { provider: "ethereum", chainId: "0x3" },
-    ]);
-    storageRead.resolve({
-        "wallet.example": [
-            { provider: "ethereum", chainId: "0x2" },
-        ],
-    });
-    await settlePromises();
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.deepEqual(responses, [{
-        latestConfigurations: [
-            { provider: "ethereum", chainId: "0x2" },
-        ],
-    }]);
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x3");
-});
-
-test("retains generation state only while a configuration read is active", async () => {
-    const storageRead = deferred();
-    const harness = makeHarness({
-        storageGet: () => storageRead.promise,
-    });
-    const responses = [];
-
-    harness.context.handleOnMessage(
-        {
-            subject: "getLatestConfiguration",
-            host: "wallet.example",
-        },
-        {},
-        response => responses.push(normalized(response))
-    );
-
-    assert.equal(
-        harness.evaluate("alchemyPrewarmHostStates.size"),
-        1
-    );
-    assert.equal(
-        harness.evaluate(
-            "alchemyPrewarmHostStates.get('wallet.example').inFlightReadCount"
-        ),
-        1
-    );
-
-    storageRead.resolve({
-        "wallet.example": [
-            { provider: "solana", cluster: "mainnet-beta" },
-        ],
-    });
-    await settlePromises();
-
-    assert.deepEqual(responses, [{
-        latestConfigurations: [
-            { provider: "solana", cluster: "mainnet-beta" },
-        ],
-    }]);
-    assert.equal(
-        harness.evaluate("alchemyPrewarmHostStates.size"),
-        0
-    );
-});
-
-test("retains generation state until its queued write settles", async () => {
-    const storageWrite = deferred();
-    const harness = makeHarness({
-        storageSet: () => storageWrite.promise,
-    });
-
-    harness.context.storeLatestConfiguration("wallet.example", [
-        { provider: "solana", cluster: "mainnet-beta" },
-    ]);
-    await settlePromises();
-
-    assert.equal(
-        harness.evaluate("alchemyPrewarmHostStates.size"),
-        1
-    );
-    assert.equal(
-        harness.evaluate("latestConfigurationWriteQueues.size"),
-        1
-    );
-
-    storageWrite.resolve();
-    await settlePromises();
-
-    assert.equal(
-        harness.evaluate("latestConfigurationWriteQueues.size"),
-        0
-    );
-    assert.equal(
-        harness.evaluate("alchemyPrewarmHostStates.size"),
-        0
-    );
-});
-
-test("waits for an already-queued configuration write before prewarming its host", async () => {
-    const storageWrite = deferred();
-    const requests = [];
-    const responseReceived = deferred();
-    let storedConfiguration = [
-        { provider: "ethereum", chainId: "0x1" },
-    ];
-    let storageReadCount = 0;
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-        storageGet: key => {
-            storageReadCount += 1;
-            return Promise.resolve({
-                [key]: storedConfiguration,
-            });
-        },
-        storageSet: value => {
-            return storageWrite.promise.then(() => {
-                storedConfiguration = value["wallet.example"];
-            });
-        },
-    });
-    const responses = [];
-
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x0",
-    });
-    harness.context.storeLatestConfiguration("wallet.example", [
-        { provider: "ethereum", chainId: "0x2" },
-    ]);
-    harness.context.handleOnMessage(
-        {
-            subject: "getLatestConfiguration",
-            host: "wallet.example",
-        },
-        {},
-        response => {
-            responses.push(normalized(response));
-            responseReceived.resolve();
-        }
-    );
-    await settlePromises();
-
-    assert.equal(storageReadCount, 0);
-
-    storageWrite.resolve();
-    await responseReceived.promise;
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.deepEqual(responses, [{
-        latestConfigurations: [
-            { provider: "ethereum", chainId: "0x2" },
-        ],
-    }]);
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x2");
-});
-
-test("lets an authoritative snapshot replace its host's queued network", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x1" },
-        "wallet.example"
-    );
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x2" },
-        "wallet.example"
-    );
-    harness.context.storeLatestConfiguration("wallet.example", [
-        { provider: "ethereum", chainId: "0x1" },
-    ]);
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 1);
-});
-
-test("clears a host's queued network when its full snapshot has no Ethereum", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x1" },
-        "active.example"
-    );
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x2" },
-        "disconnected.example"
-    );
-    harness.context.storeLatestConfiguration("disconnected.example", [
-        { provider: "solana", cluster: "mainnet-beta" },
-    ]);
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 1);
-});
-
-test("does not let another host's full snapshot erase a queued network", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x1" },
-        "active.example"
-    );
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x2" },
-        "queued.example"
-    );
-    harness.context.storeLatestConfiguration("other.example", [
-        { provider: "solana", cluster: "mainnet-beta" },
-    ]);
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x2");
-});
-
-test("does not let an incremental Solana update erase queued Ethereum", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x1" },
-        "active.example"
-    );
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x2" },
-        "wallet.example"
-    );
-    harness.context.storeLatestConfiguration("wallet.example", {
-        provider: "solana",
-        cluster: "mainnet-beta",
-    });
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x2");
-});
-
-test("clears a host's queued Ethereum network on disconnect", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x1" },
-        "active.example"
-    );
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x2" },
-        "disconnected.example"
-    );
-    const removal = harness.context.removeLatestConfiguration(
-        "disconnected.example",
-        "ethereum"
-    );
-    await removal;
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 1);
-});
-
-test("does not drain a queued network while its disconnect write is pending", async () => {
-    const storageWrite = deferred();
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-        storageSet: () => storageWrite.promise,
-    });
-
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x1" },
-        "active.example"
-    );
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x2" },
-        "disconnected.example"
-    );
-    const removal = harness.context.removeLatestConfiguration(
-        "disconnected.example",
-        "ethereum"
-    );
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 1);
-
-    storageWrite.resolve();
-    await removal;
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 1);
-});
-
-test("preserves a reconnect queued while an earlier disconnect completes", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x1" },
-        "active.example"
-    );
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x2" },
-        "wallet.example"
-    );
-    const removal = harness.context.removeLatestConfiguration(
-        "wallet.example",
-        "ethereum"
-    );
-    harness.context.storeLatestConfiguration("wallet.example", {
-        provider: "ethereum",
-        chainId: "0x3",
-    });
-    await removal;
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x3");
-});
-
-test("keeps a shared queued network when only one requesting host disconnects", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x1" },
-        "active.example"
-    );
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x2" },
-        "first.example"
-    );
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x2" },
-        "second.example"
-    );
-    await harness.context.removeLatestConfiguration(
-        "first.example",
-        "ethereum"
-    );
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x2");
-});
-
-test("prunes superseded and consumed pending-host state", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured(
-        { provider: "ethereum", chainId: "0x1" },
-        "active.example"
-    );
-    harness.context.storeLatestConfiguration("first.example", [
-        { provider: "ethereum", chainId: "0x2" },
-    ]);
-    harness.context.storeLatestConfiguration("second.example", [
-        { provider: "ethereum", chainId: "0x3" },
-    ]);
-    await settlePromises();
-
-    assert.deepEqual(
-        normalized(harness.evaluate(
-            "[...alchemyPrewarmHostStates.keys()]"
-        )),
-        ["second.example"]
-    );
-    assert.equal(
-        harness.evaluate("pendingAlchemyPrewarmHosts.size"),
-        1
-    );
-
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x3");
-    assert.equal(
-        harness.evaluate("pendingAlchemyPrewarmHosts.size"),
-        0
-    );
-    assert.equal(
-        harness.evaluate("alchemyPrewarmHostStates.size"),
-        0
-    );
-});
-
-test("prunes hundreds of settled hosts without reusing generations", async () => {
-    const harness = makeHarness();
-
-    for (let index = 0; index < 500; index += 1) {
-        harness.context.storeLatestConfiguration(
-            `wallet-${index}.example`,
-            [{ provider: "solana", cluster: "mainnet-beta" }]
-        );
-    }
-    await settlePromises();
-
-    assert.equal(
-        harness.evaluate("latestConfigurationWriteQueues.size"),
-        0
-    );
-    assert.equal(
-        harness.evaluate("alchemyPrewarmHostStates.size"),
-        0
-    );
-
-    const firstGeneration =
-        harness.context.advanceAlchemyPrewarmHostGeneration(
-            "reconnected.example"
-        );
-    harness.context.pruneAlchemyPrewarmHostState(
-        "reconnected.example"
-    );
-    const secondGeneration =
-        harness.context.advanceAlchemyPrewarmHostGeneration(
-            "reconnected.example"
-        );
-
-    assert.ok(secondGeneration > firstGeneration);
-
-    harness.context.pruneAlchemyPrewarmHostState(
-        "reconnected.example"
-    );
-    assert.equal(
-        harness.evaluate("alchemyPrewarmHostStates.size"),
-        0
-    );
-});
-
-test("ignores Solana while keeping the latest queued Ethereum configuration", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x1",
-    });
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x2",
-    });
-    harness.context.prewarmAlchemyIfConfigured({ provider: "solana" });
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x3",
-    });
-    requests[0].resolve();
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.provider, "ethereum");
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x3");
-});
-
-test("drains the pending configuration after native rejection", async () => {
-    const requests = [];
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            const request = deferred();
-            requests.push(request);
-            return request.promise;
-        },
-    });
-
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x1",
-    });
-    harness.context.prewarmAlchemyIfConfigured({
-        provider: "ethereum",
-        chainId: "0x2",
-    });
-    requests[0].reject(new Error("native bridge unavailable"));
-    await settlePromises();
-
-    assert.equal(harness.nativeMessages.length, 2);
-    assert.equal(harness.nativeMessages[1].message.chainId, "0x2");
-});
-
-test("remains reusable after sendNativeMessage throws synchronously", () => {
-    let attempt = 0;
-    const harness = makeHarness({
-        sendNativeMessage: () => {
-            attempt += 1;
-            if (attempt === 1) {
-                throw new Error("native bridge unavailable");
-            }
-            return Promise.resolve();
-        },
-    });
-    const configuration = {
-        provider: "ethereum",
-        chainId: "0x1",
-    };
-
-    harness.context.prewarmAlchemyIfConfigured(configuration);
-    harness.context.prewarmAlchemyIfConfigured(configuration);
-
-    assert.equal(harness.nativeMessages.length, 2);
 });

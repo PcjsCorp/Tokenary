@@ -4,6 +4,7 @@
 
 import BigWalletEthereum from "./ethereum";
 import BigWalletSolana from "./solana";
+import { normalizedRPCResponse } from "./rpc_response";
 
 window.bigwallet = {};
 window.bigwallet.postMessage = (name, id, body, provider) => {
@@ -62,7 +63,13 @@ announceProvider();
 
 window.addEventListener("message", function(event) {
     if (event.source == window && event.data && event.data.direction == "rpc-back") {
-        ethereumProvider.processBigWalletResponse(event.data.response.id, event.data.response);
+        const response = normalizedRPCResponse(
+            event.data.response,
+            event.data.id
+        );
+        if (response) {
+            ethereumProvider.processBigWalletResponse(response.id, response);
+        }
     } else if (event.source == window && event.data && event.data.direction == "from-content-script") {
         const response = event.data.response;
         const id = event.data.id;
